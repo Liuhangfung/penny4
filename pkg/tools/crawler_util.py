@@ -102,6 +102,8 @@ def match_interact_info_count(count_str: str) -> int:
 
 def extract_text_from_html(html: str) -> str:
     """Extract text from HTML, removing all tags."""
+    if not html:
+        return ""
     # Remove script and style elements
     clean_html = re.sub(r'<(script|style)[^>]*>.*?</\1>', '', html, flags=re.DOTALL)
     # Remove all other tags

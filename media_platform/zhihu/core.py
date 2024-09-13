@@ -7,7 +7,7 @@ from typing import List, Optional
 import config
 import constant
 from base.base_crawler import AbstractCrawler
-from model.m_zhihu import ZhihuContent
+from model.m_zhihu import ZhihuContent, ZhihuCreator
 from pkg.account_pool.pool import AccountWithIpPoolManager
 from pkg.proxy.proxy_ip_pool import ProxyIpPool, create_ip_pool
 from pkg.tools import utils
@@ -71,7 +71,7 @@ class ZhihuCrawler(AbstractCrawler):
             raise NotImplementedError
         elif config.CRAWLER_TYPE == "creator":
             # Get creator's information and their notes and comments
-            raise NotImplementedError
+            await self.get_creators_and_notes()
         else:
             pass
 
@@ -155,3 +155,49 @@ class ZhihuCrawler(AbstractCrawler):
                 crawl_interval=random.random(),
                 callback=zhihu_store.batch_update_zhihu_note_comments
             )
+
+    async def get_creators_and_notes(self) -> None:
+        """
+        Get creator's information and their notes and comments
+        Returns:
+
+        """
+        utils.logger.info("[ZhihuCrawler.get_creators_and_notes] Begin get xiaohongshu creators")
+        for user_link in config.ZHIHU_CREATOR_URL_LIST:
+            utils.logger.info(f"[ZhihuCrawler.get_creators_and_notes] Begin get creator {user_link}")
+            user_url_token = user_link.split("/")[-1]
+            # get creator detail info from web html content
+            createor_info: ZhihuCreator = await self.zhihu_client.get_creator_info(url_token=user_url_token)
+            if not createor_info:
+                utils.logger.info(f"[ZhihuCrawler.get_creators_and_notes] Creator {user_url_token} not found")
+                continue
+
+            utils.logger.info(f"[ZhihuCrawler.get_creators_and_notes] Creator info: {createor_info}")
+            await zhihu_store.save_creator(creator=createor_info)
+
+            # 默认只提取回答信息，如果需要文章和视频，把下面的注释打开即可
+
+            # Get all anwser information of the creator
+            all_content_list = await self.zhihu_client.get_all_anwser_by_creator(
+                creator=createor_info,
+                crawl_interval=random.random(),
+                callback=zhihu_store.batch_update_zhihu_contents
+            )
+
+
+            # Get all articles of the creator's contents
+            # all_content_list = await self.zhihu_client.get_all_articles_by_creator(
+            #     creator=createor_info,
+            #     crawl_interval=random.random(),
+            #     callback=zhihu_store.batch_update_zhihu_contents
+            # )
+
+            # Get all videos of the creator's contents
+            # all_content_list = await self.zhihu_client.get_all_videos_by_creator(
+            #     creator=createor_info,
+            #     crawl_interval=random.random(),
+            #     callback=zhihu_store.batch_update_zhihu_contents
+            # )
+
+            # Get all comments of the creator's contents
+            await self.batch_get_content_comments(all_content_list)

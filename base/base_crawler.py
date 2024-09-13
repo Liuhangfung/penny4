@@ -13,7 +13,6 @@ class AbstractCrawler(ABC):
         """
         raise NotImplementedError
 
-
     @abstractmethod
     async def start(self):
         """
@@ -21,7 +20,7 @@ class AbstractCrawler(ABC):
         Returns:
 
         """
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     async def search(self):
@@ -30,52 +29,58 @@ class AbstractCrawler(ABC):
         Returns:
 
         """
-        pass
-
-
-class AbstractLogin(ABC):
-    @abstractmethod
-    async def begin(self):
-        pass
-
-    @abstractmethod
-    async def login_by_qrcode(self):
-        pass
-
-    @abstractmethod
-    async def login_by_mobile(self):
-        pass
-
-    @abstractmethod
-    async def login_by_cookies(self):
-        pass
+        raise NotImplementedError
 
 
 class AbstractStore(ABC):
     @abstractmethod
     async def store_content(self, content_item: Dict):
-        pass
+        """
+        Store the content
+        Args:
+            content_item:
+
+        Returns:
+
+        """
+        raise NotImplementedError
 
     @abstractmethod
     async def store_comment(self, comment_item: Dict):
-        pass
+        """
+        Store the comment
+        Args:
+            comment_item:
 
-    # TODO support all platform
-    # only xhs is supported, so @abstractmethod is commented
+        Returns:
+
+        """
+        raise NotImplementedError
+
     @abstractmethod
     async def store_creator(self, creator: Dict):
-        pass
+        """
+        Store the creator
+        Args:
+            creator:
 
+        Returns:
 
-class AbstractStoreImage(ABC):
-    # TODO: support all platform
-    # only weibo is supported
-    # @abstractmethod
-    async def store_image(self, image_content_item: Dict):
-        pass
+        """
+        raise NotImplementedError
 
 
 class AbstractApiClient(ABC):
     @abstractmethod
     async def request(self, method, url, **kwargs):
-        pass
+        """
+        Send a request
+        Args:
+            method:
+            url:
+            **kwargs:
+
+        Returns:
+
+        """
+        raise NotImplementedError

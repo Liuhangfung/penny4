@@ -116,3 +116,10 @@ KS_CREATOR_ID_LIST = [
     "3x4sm73aye7jq7i",
     # ........................
 ]
+
+
+# 指定知乎创作者主页url列表
+ZHIHU_CREATOR_URL_LIST = [
+    "https://www.zhihu.com/people/yd1234567",
+    # ........................
+]

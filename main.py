@@ -13,6 +13,7 @@ from media_platform.kuaishou import KuaiShouCrawler
 from media_platform.tieba import TieBaCrawler
 from media_platform.weibo import WeiboCrawler
 from media_platform.xhs import XiaoHongShuCrawler
+from media_platform.zhihu import ZhihuCrawler
 
 
 class CrawlerFactory:
@@ -22,7 +23,8 @@ class CrawlerFactory:
         constant.TIEBA_PLATFORM_NAME: TieBaCrawler,
         constant.BILIBILI_PLATFORM_NAME: BilibiliCrawler,
         constant.DOUYIN_PLATFORM_NAME: DouYinCrawler,
-        constant.KUAISHOU_PLATFORM_NAME: KuaiShouCrawler
+        constant.KUAISHOU_PLATFORM_NAME: KuaiShouCrawler,
+        constant.ZHIHU_PLATFORM_NAME: ZhihuCrawler
     }
 
     @staticmethod

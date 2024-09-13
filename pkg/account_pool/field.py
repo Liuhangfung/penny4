@@ -25,6 +25,7 @@ class AccountPlatfromEnum(Enum):
     KUAISHOU = constant.KUAISHOU_PLATFORM_NAME
     BILIBILI = constant.BILIBILI_PLATFORM_NAME
     TIEBA = constant.TIEBA_PLATFORM_NAME
+    ZHIHU = constant.ZHIHU_PLATFORM_NAME
 
 
 class AccountInfoModel(BaseModel):

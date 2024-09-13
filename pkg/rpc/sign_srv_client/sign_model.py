@@ -57,3 +57,19 @@ class BilibliSignResponse(BaseModel):
     msg: str = "OK!"
     isok: bool = True
     data: Optional[BililiSignResult] = None
+
+
+class ZhihuSignResult(BaseModel):
+    x_zst_81: str = Field(..., title="x_zst_81", description="x_zst_81")
+    x_zse_96: str = Field(..., title="x_zse_96", description="x_zse_96")
+
+class ZhihuSignRequest(BaseModel):
+    uri: str = Field(..., title="uri", description="请求的uri")
+    cookies: str = Field(..., title="cookies", description="请求的cookies")
+
+
+class ZhihuSignResponse(BaseModel):
+    biz_code: int = 0
+    msg: str = "OK!"
+    isok: bool = True
+    data: Optional[ZhihuSignResult] = None

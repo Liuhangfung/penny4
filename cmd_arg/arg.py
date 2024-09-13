@@ -7,14 +7,15 @@ import constant
 async def parse_cmd():
     # 读取command arg
     parser = argparse.ArgumentParser(description='Media crawler program.')
-    parser.add_argument('--platform', type=str, help='Media platform select (xhs | dy | ks | bili | wb | tieba)',
+    parser.add_argument('--platform', type=str, help='Media platform select (xhs | dy | ks | bili | wb | tieba | zhihu)',
                         choices=[
                             constant.XHS_PLATFORM_NAME,
                             constant.DOUYIN_PLATFORM_NAME,
                             constant.KUAISHOU_PLATFORM_NAME,
                             constant.WEIBO_PLATFORM_NAME,
                             constant.BILIBILI_PLATFORM_NAME,
-                            constant.TIEBA_PLATFORM_NAME
+                            constant.TIEBA_PLATFORM_NAME,
+                            constant.ZHIHU_PLATFORM_NAME
                         ], default=config.PLATFORM)
     parser.add_argument('--type', type=str, help='crawler type (search | detail | creator)',
                         choices=["search", "detail", "creator"], default=config.CRAWLER_TYPE)

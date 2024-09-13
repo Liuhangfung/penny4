@@ -10,7 +10,7 @@ async def query_platform_accounts_cookies(platform_name: str, cookie_status: int
     """
     根据指定平台名称查询账号cookies列表
     Args:
-        platform_name: xhs | dy | ks | wb | bili | tieba
+        platform_name: xhs | dy | ks | wb | bili | tieba | zhihu
         cookie_status: 0: 正常状态 -1: 异常状态
 
     Returns:

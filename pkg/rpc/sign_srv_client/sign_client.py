@@ -10,7 +10,9 @@ from pkg.rpc.sign_srv_client.sign_model import (BilibliSignRequest,
                                                 DouyinSignRequest,
                                                 DouyinSignResponse,
                                                 XhsSignRequest,
-                                                XhsSignResponse)
+                                                XhsSignResponse,
+                                                ZhihuSignRequest,
+                                                ZhihuSignResponse)
 from pkg.tools import utils
 
 SIGN_SERVER_URL = f"http://{config.SIGN_SRV_HOST}:{config.SIGN_SRV_PORT}"
@@ -106,6 +108,25 @@ class SignServerClient:
         if not res_json:
             raise Exception(f"从签名服务器:{SIGN_SERVER_URL}{sign_server_uri} 获取签名失败")
         sign_response = BilibliSignResponse(**res_json)
+        if sign_response.isok:
+            return sign_response
+        raise Exception(
+            f"从签名服务器:{SIGN_SERVER_URL}{sign_server_uri} 获取签名失败，原因：{sign_response.msg}, sign reponse: {sign_response}")
+
+    async def zhihu_sign(self, sign_req: ZhihuSignRequest) -> ZhihuSignResponse:
+        """
+        zhihu sign request to sign server
+        Args:
+            sign_req:
+
+        Returns:
+
+        """
+        sign_server_uri = "/signsrv/v1/zhihu/sign"
+        res_json = await self.request(method="POST", uri=sign_server_uri, json=sign_req.model_dump())
+        if not res_json:
+            raise Exception(f"从签名服务器:{SIGN_SERVER_URL}{sign_server_uri} 获取签名失败")
+        sign_response = ZhihuSignResponse(**res_json)
         if sign_response.isok:
             return sign_response
         raise Exception(

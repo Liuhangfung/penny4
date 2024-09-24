@@ -15,12 +15,16 @@ def get_current_timestamp() -> int:
     return int(time.time() * 1000)
 
 
-def get_current_time() -> str:
+def get_current_time(time_format: str = "%Y-%m-%d %X") -> str:
     """
     获取当前的时间：'2023-12-02 13:01:23'
-    :return:
+    Args:
+        time_format: 时间格式
+
+    Returns:
+
     """
-    return time.strftime('%Y-%m-%d %X', time.localtime())
+    return time.strftime(time_format, time.localtime())
 
 
 def get_current_date() -> str:

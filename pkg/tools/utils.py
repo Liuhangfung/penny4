@@ -1,12 +1,18 @@
 import argparse
 import logging
+import os
 from random import Random
 
+import config
 from .crawler_util import *
 from .time_util import *
 
-
 def init_loging_config():
+    """
+    init loging config
+    Returns:
+
+    """
     level = logging.INFO
     logging.basicConfig(
         level=level,
@@ -15,6 +21,26 @@ def init_loging_config():
     )
     _logger = logging.getLogger("MediaCrawlerPro")
     _logger.setLevel(level)
+
+    if config.ENABLE_LOG_FILE:
+        # create logs dir
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        log_dir = os.path.join(project_root, 'logs', config.PLATFORM)
+        if not os.path.exists(log_dir):
+            os.makedirs(log_dir)
+
+        log_file = os.path.join(log_dir, f"{get_current_date()}.log")
+        file_handler = logging.FileHandler(
+            filename=log_file,
+            encoding="utf-8"
+        )
+        file_handler.setLevel(level)
+        file_handler.setFormatter(logging.Formatter(
+            fmt="%(asctime)s %(name)s %(levelname)s (%(filename)s:%(lineno)d) - %(message)s",
+            datefmt='%Y-%m-%d %H:%M:%S'
+        ))
+        _logger.addHandler(file_handler)
+
     return _logger
 
 

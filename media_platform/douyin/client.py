@@ -435,6 +435,7 @@ class DouYinApiClient(AbstractApiClient):
                     if callback:  # 如果有回调函数，就执行回调函数
                         await callback(aweme_id, sub_comments)
                     await asyncio.sleep(crawl_interval)
+        return result
 
     async def get_user_info(self, sec_user_id: str):
         """

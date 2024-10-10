@@ -184,8 +184,9 @@ class KuaiShouApiClient(AbstractApiClient):
             try:
                 utils.logger.info(f"[KuaiShouApiClient.post] 请求uri:{uri} 尝试更换IP再次发起重试...")
                 await self.account_with_ip_pool.mark_ip_invalid(self.account_info.ip_info)
-                self.account_info.ip_info = await self.account_with_ip_pool.proxy_ip_pool.get_proxy()
-                return await self.request(method="POST", url=f"{KUAISHOU_API}{uri}", data=json_str, **kwargs)
+                if config.ENABLE_IP_PROXY:
+                    self.account_info.ip_info = await self.account_with_ip_pool.proxy_ip_pool.get_proxy()
+                    return await self.request(method="POST", url=f"{KUAISHOU_API}{uri}", data=json_str, **kwargs)
             except RetryError as ee:
                 # 获取原始异常
                 original_exception = ee.last_attempt.exception()

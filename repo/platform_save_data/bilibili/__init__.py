@@ -96,6 +96,7 @@ async def update_bilibili_video_comment(video_id: str, comment_item: Dict):
         "avatar": user_info.get("avatar"),
         "sub_comment_count": str(comment_item.get("rcount", 0)),
         "last_modify_ts": utils.get_current_timestamp(),
+        "like_count": comment_item.get("like") if comment_item.get("like") else 0,
     }
     utils.logger.info(
         f"[store.bilibili.update_bilibili_video_comment] Bilibili video comment: {comment_id}, content: {save_comment_item.get('content')}")

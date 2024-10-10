@@ -109,6 +109,7 @@ async def update_xhs_note_comment(note_id: str, comment_item: Dict):
         "pictures": ",".join(comment_pictures),
         "parent_comment_id": target_comment.get("id", 0),
         "last_modify_ts": utils.get_current_timestamp(),
+        "like_count": comment_item.get("like_count") if comment_item.get("like_count") else 0,
     }
     utils.logger.info(f"[store.xhs.update_xhs_note_comment] xhs note comment:{local_db_item}")
     await XhsStoreFactory.create_store().store_comment(local_db_item)

@@ -87,7 +87,7 @@ async def update_weibo_note_comment(note_id: str, comment_item: Dict):
         "note_id": note_id,
         "content": clean_text,
         "sub_comment_count": str(comment_item.get("total_number", 0)),
-        "comment_like_count": str(comment_item.get("like_count", 0)),
+        "like_count": comment_item.get("like_count") if comment_item.get("like_count") else 0,
         "last_modify_ts": utils.get_current_timestamp(),
         "ip_location": comment_item.get("source", "").replace("来自", ""),
         "parent_comment_id": comment_item.get("rootid", ""),

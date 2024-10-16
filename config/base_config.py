@@ -41,15 +41,22 @@ PER_NOTE_MAX_COMMENTS_COUNT = 0
 # 是否开启日志打印输出到文件中
 ENABLE_LOG_FILE = True
 
-# 指定小红书需要爬虫的笔记ID列表
-XHS_SPECIFIED_ID_LIST = [
-    "6672c38c000000001c02aeb4",
+# 已废弃⚠️⚠️⚠️指定小红书需要爬虫的笔记ID列表
+# 已废弃⚠️⚠️⚠️ 指定笔记ID笔记列表会因为缺少xsec_token和xsec_source参数导致爬取失败
+# XHS_SPECIFIED_ID_LIST = [
+#     "66fad51c000000001b0224b8",
+#     # ........................
+# ]
+
+# 指定小红书需要爬虫的笔记URL列表, 目前要携带xsec_token和xsec_source参数
+XHS_SPECIFIED_NOTE_URL_LIST = [
+    "https://www.xiaohongshu.com/explore/66fad51c000000001b0224b8?xsec_token=AB3rO-QopW5sgrJ41GwN01WCXh6yWPxjSoFI9D5JIMgKw=&xsec_source=pc_search"
     # ........................
 ]
 
 # 指定小红书创作者ID列表
 XHS_CREATOR_ID_LIST = [
-    "63e36c9a000000002703502b",
+    "66e3df16000000000b03114e",
     # ........................
 ]
 

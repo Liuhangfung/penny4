@@ -6,6 +6,7 @@ from typing import Dict, List, Optional
 import config
 import constant
 from base.base_crawler import AbstractCrawler
+from model.m_xiaohongshu import NoteUrlInfo
 from pkg.account_pool.pool import AccountWithIpPoolManager
 from pkg.proxy.proxy_ip_pool import ProxyIpPool, create_ip_pool
 from pkg.tools import utils
@@ -15,6 +16,7 @@ from var import crawler_type_var, source_keyword_var
 from .client import XiaoHongShuClient
 from .exception import DataFetchError
 from .field import SearchSortType
+from .help import parse_note_info_from_note_url
 
 
 class XiaoHongShuCrawler(AbstractCrawler):
@@ -103,7 +105,8 @@ class XiaoHongShuCrawler(AbstractCrawler):
                         page=page,
                         sort=SearchSortType(config.SORT_TYPE) if config.SORT_TYPE != '' else SearchSortType.GENERAL,
                     )
-                    utils.logger.info(f"[XiaoHongShuCrawler.search] Search notes res:{notes_res}")
+                    utils.logger.info(
+                        f"[XiaoHongShuCrawler.search] Search notes res count:{len(notes_res.get('items', []))}")
                     if not notes_res or not notes_res.get('has_more', False):
                         utils.logger.info("No more content!")
                         break
@@ -146,10 +149,13 @@ class XiaoHongShuCrawler(AbstractCrawler):
         """
         utils.logger.info("[XiaoHongShuCrawler.get_creators_and_notes] Begin get xiaohongshu creators")
         for user_id in config.XHS_CREATOR_ID_LIST:
-            # get creator detail info from web html content
             createor_info: Dict = await self.xhs_client.get_creator_info(user_id=user_id)
             if createor_info:
                 await xhs_store.save_creator(user_id, creator=createor_info)
+            else:
+                utils.logger.error(
+                    f"[XiaoHongShuCrawler.get_creators_and_notes] Get creator info error, user_id: {user_id}")
+                continue
 
             # Get all note information of the creator
             all_notes_list = await self.xhs_client.get_all_notes_by_creator(
@@ -189,42 +195,21 @@ class XiaoHongShuCrawler(AbstractCrawler):
     async def get_specified_notes(self):
         """
         Get the information and comments of the specified post
+        must be specified note_id, xsec_source, xsec_token⚠️⚠️⚠️
         Returns:
 
         """
-
-        async def get_note_detail_from_html_task(note_id: str, semaphore: asyncio.Semaphore) -> Dict:
-            """
-            Get note detail from html content
-            该方法会有一定几率触发验证码，所以不建议使用
-            Args:
-                note_id:
-                semaphore:
-
-            Returns:
-
-            """
-            async with semaphore:
-                try:
-                    _note_detail: Dict = await self.xhs_client.get_note_by_id_from_html(note_id)
-                    if not _note_detail:
-                        utils.logger.error(
-                            f"[XiaoHongShuCrawler.get_note_detail_from_html] Get note detail error, note_id: {note_id}")
-                        return {}
-                    return _note_detail
-                except DataFetchError as ex:
-                    utils.logger.error(f"[XiaoHongShuCrawler.get_note_detail_from_html] Get note detail error: {ex}")
-                    return {}
-                except KeyError as ex:
-                    utils.logger.error(
-                        f"[XiaoHongShuCrawler.get_note_detail_from_html] have not fund note detail note_id:{note_id}, err: {ex}")
-                    return {}
-
-        get_note_detail_task_list = [
-            self.get_note_detail(note_id=note_id, xsec_source="", xsec_token="",
-                                 semaphore=asyncio.Semaphore(config.MAX_CONCURRENCY_NUM)) for
-            note_id in config.XHS_SPECIFIED_ID_LIST
-        ]
+        get_note_detail_task_list = []
+        for full_note_url in config.XHS_SPECIFIED_NOTE_URL_LIST:
+            note_url_info: NoteUrlInfo = parse_note_info_from_note_url(full_note_url)
+            utils.logger.info(f"[XiaoHongShuCrawler.get_specified_notes] Parse note url info: {note_url_info}")
+            crawler_task = self.get_note_detail(
+                note_id=note_url_info.note_id,
+                xsec_source=note_url_info.xsec_source,
+                xsec_token=note_url_info.xsec_token,
+                semaphore=asyncio.Semaphore(config.MAX_CONCURRENCY_NUM)
+            )
+            get_note_detail_task_list.append(crawler_task)
 
         need_get_comment_note_ids = []
         note_details = await asyncio.gather(*get_note_detail_task_list)
@@ -249,7 +234,9 @@ class XiaoHongShuCrawler(AbstractCrawler):
         """
         async with semaphore:
             try:
+                utils.logger.info(f"[XiaoHongShuCrawler.get_note_detail] Begin get note detail, note_id: {note_id}")
                 note_detail: Dict = await self.xhs_client.get_note_by_id(note_id, xsec_source, xsec_token)
+                utils.logger.info(f"[XiaoHongShuCrawler.get_note_detail] Get note detail: {note_detail}")
                 if not note_detail:
                     utils.logger.error(
                         f"[XiaoHongShuCrawler.get_note_detail] Get note detail error, note_id: {note_id}")

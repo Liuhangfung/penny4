@@ -53,7 +53,7 @@ class XiaoHongShuClient(AbstractApiClient):
             "Cookie": self._cookies,
             "origin": "https://www.xiaohongshu.com",
             "referer": "https://www.xiaohongshu.com/",
-            "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+            'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36',
         }
 
     @property
@@ -82,7 +82,10 @@ class XiaoHongShuClient(AbstractApiClient):
 
         """
         if self.account_with_ip_pool:
-            await self.account_with_ip_pool.mark_account_invalid(account_with_ip.account)
+            # 如果登录态失效了，那么标记账号为无效（有时候可能只是获取帖子详情被block，实际cookies还是可以用的，所以这里加一层判断）
+            if not await self.pong():
+                utils.logger.info(f"[XiaoHongShuClient.mark_account_invalid] mark account invalid: {account_with_ip.account}")
+                await self.account_with_ip_pool.mark_account_invalid(account_with_ip.account)
             await self.account_with_ip_pool.mark_ip_invalid(account_with_ip.ip_info)
 
     async def _pre_headers(self, uri: str, data=None) -> Dict:
@@ -299,9 +302,9 @@ class XiaoHongShuClient(AbstractApiClient):
             "extra": {"need_body_topic": 1},
         }
         # 开启xsec_token详情接口特别容易出现滑块验证，所以暂时不开启
-        # if xsec_token:
-        #     data["xsec_token"] = xsec_token
-        #     data["xsec_source"] = xsec_source
+        if xsec_token:
+            data["xsec_token"] = xsec_token
+            data["xsec_source"] = xsec_source
 
         uri = "/api/sns/web/v1/feed"
         res = await self.post(uri, data)
@@ -440,12 +443,10 @@ class XiaoHongShuClient(AbstractApiClient):
         eg: https://www.xiaohongshu.com/user/profile/59d8cb33de5fb4696bf17217
         """
         uri = f"/user/profile/{user_id}"
-        response: Response = await self.request("GET", XHS_INDEX_URL + uri, return_response=True)
+        response: Response = await self.request("GET", XHS_INDEX_URL + uri, return_response=True, follow_redirects=True, headers=self.headers)
         match = re.search(r'<script>window.__INITIAL_STATE__=(.+)<\/script>', response.text, re.M)
-
         if match is None:
             return {}
-
         info = json.loads(match.group(1).replace(':undefined', ':null'), strict=False)
         if info is None:
             return {}
@@ -496,7 +497,6 @@ class XiaoHongShuClient(AbstractApiClient):
                 utils.logger.error(
                     f"[XiaoHongShuClient.get_notes_by_creator] The current creator may have been banned by xhs, so they cannot access the data.")
                 break
-
             notes_has_more = notes_res.get("has_more", False)
             notes_cursor = notes_res.get("cursor", "")
             if "notes" not in notes_res:
@@ -506,7 +506,7 @@ class XiaoHongShuClient(AbstractApiClient):
 
             notes = notes_res["notes"]
             utils.logger.info(
-                f"[XiaoHongShuClient.get_all_notes_by_creator] got user_id:{user_id} notes len : {len(notes)}")
+                f"[XiaoHongShuClient.get_all_notes_by_creator] got user_id:{user_id} notes len : {len(notes)}, notes_cursor: {notes_cursor}")
             if callback:
                 await callback(notes)
             await asyncio.sleep(crawl_interval)
@@ -547,7 +547,7 @@ class XiaoHongShuClient(AbstractApiClient):
             return dict_new
 
         url = "https://www.xiaohongshu.com/explore/" + note_id
-        res = await self.request(method="GET", url=url, return_response=True, headers=self.headers)
+        res = await self.request(method="GET", url=url, return_response=True, headers=self.headers, follow_redirects=True)
         html = res.text
         state = re.findall(r"window.__INITIAL_STATE__=({.*})</script>", html)[0].replace("undefined", '""')
         if state != "{}":

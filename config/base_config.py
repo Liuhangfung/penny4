@@ -26,7 +26,7 @@ START_PAGE = 1
 # 爬取视频/帖子的数量控制
 CRAWLER_MAX_NOTES_COUNT = 40
 
-# 并发爬虫数量控制
+# 并发爬虫数量控制（请勿对平台发起大规模请求，并发控制仅限用于学习python的并发控制技术⚠️⚠️）
 MAX_CONCURRENCY_NUM = 1
 
 # 是否开启爬评论模式, 默认不开启爬评论

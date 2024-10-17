@@ -178,7 +178,8 @@ class ZhiHuClient(AbstractApiClient):
                          f"{urlencode(params)}")
         try:
             headers = await self._pre_headers(final_uri)
-            res = await self.request(method="GET", url=f"{zhihu_constant.ZHIHU_URL}{final_uri}", headers=headers,
+            base_url = zhihu_constant.ZHIHU_URL if "/p/" not in uri else zhihu_constant.ZHIHU_ZHUANLAN_URL
+            res = await self.request(method="GET", url=f"{base_url}{final_uri}", headers=headers,
                                      **kwargs)
             return res
         except RetryError as e:
@@ -390,6 +391,47 @@ class ZhiHuClient(AbstractApiClient):
                 await asyncio.sleep(crawl_interval)
         return all_sub_comments
 
+
+    async def get_answer_info(self, question_id: str, answer_id: str) -> Optional[ZhihuContent]:
+        """
+        获取回答信息
+        Args:
+            question_id:
+            answer_id:
+
+        Returns:
+
+        """
+        uri = f"/question/{question_id}/answer/{answer_id}"
+        response_html = await self.get(uri, return_response=True)
+        return self._extractor.extract_answer_content_from_html(response_html)
+
+    async def get_article_info(self, article_id: str) -> Optional[ZhihuContent]:
+        """
+        获取文章信息
+        Args:
+            article_id:
+
+        Returns:
+
+        """
+        uri = f"/p/{article_id}"
+        response_html = await self.get(uri, return_response=True)
+        return self._extractor.extract_article_content_from_html(response_html)
+
+    async def get_video_info(self, video_id: str) -> Optional[ZhihuContent]:
+        """
+        获取视频信息
+        Args:
+            video_id:
+
+        Returns:
+
+        """
+        uri = f"/zvideo/{video_id}"
+        response_html = await self.get(uri, return_response=True)
+        return self._extractor.extract_zvideo_content_from_html(response_html)
+
     async def get_creator_info(self, url_token: str) -> Optional[ZhihuCreator]:
         """
         获取创作者信息
@@ -417,7 +459,7 @@ class ZhiHuClient(AbstractApiClient):
         """
         uri = f"/api/v4/members/{url_token}/answers"
         params = {
-            "include":"data[*].is_normal,admin_closed_comment,reward_info,is_collapsed,annotation_action,annotation_detail,collapse_reason,collapsed_by,suggest_edit,comment_count,can_comment,content,editable_content,attachment,voteup_count,reshipment_settings,comment_permission,created_time,updated_time,review_info,excerpt,paid_info,reaction_instruction,is_labeled,label_info,relationship.is_authorized,voting,is_author,is_thanked,is_nothelp;data[*].vessay_info;data[*].author.badge[?(type=best_answerer)].topics;data[*].author.vip_info;data[*].question.has_publishing_draft,relationship",
+            "include": "data[*].is_normal,admin_closed_comment,reward_info,is_collapsed,annotation_action,annotation_detail,collapse_reason,collapsed_by,suggest_edit,comment_count,can_comment,content,editable_content,attachment,voteup_count,reshipment_settings,comment_permission,created_time,updated_time,review_info,excerpt,paid_info,reaction_instruction,is_labeled,label_info,relationship.is_authorized,voting,is_author,is_thanked,is_nothelp;data[*].vessay_info;data[*].author.badge[?(type=best_answerer)].topics;data[*].author.vip_info;data[*].question.has_publishing_draft,relationship",
             "offset": offset,
             "limit": limit,
             "order_by": "created"
@@ -437,7 +479,7 @@ class ZhiHuClient(AbstractApiClient):
         """
         uri = f"/api/v4/members/{url_token}/articles"
         params = {
-            "include":"data[*].comment_count,suggest_edit,is_normal,thumbnail_extra_info,thumbnail,can_comment,comment_permission,admin_closed_comment,content,voteup_count,created,updated,upvoted_followees,voting,review_info,reaction_instruction,is_labeled,label_info;data[*].vessay_info;data[*].author.badge[?(type=best_answerer)].topics;data[*].author.vip_info;",
+            "include": "data[*].comment_count,suggest_edit,is_normal,thumbnail_extra_info,thumbnail,can_comment,comment_permission,admin_closed_comment,content,voteup_count,created,updated,upvoted_followees,voting,review_info,reaction_instruction,is_labeled,label_info;data[*].vessay_info;data[*].author.badge[?(type=best_answerer)].topics;data[*].author.vip_info;",
             "offset": offset,
             "limit": limit,
             "order_by": "created"
@@ -457,7 +499,7 @@ class ZhiHuClient(AbstractApiClient):
         """
         uri = f"/api/v4/members/{url_token}/zvideos"
         params = {
-            "include":"similar_zvideo,creation_relationship,reaction_instruction",
+            "include": "similar_zvideo,creation_relationship,reaction_instruction",
             "offset": offset,
             "limit": limit,
             "similar_aggregation": "true"
@@ -495,7 +537,6 @@ class ZhiHuClient(AbstractApiClient):
             await asyncio.sleep(crawl_interval)
         return all_contents
 
-
     async def get_all_articles_by_creator(self, creator: ZhihuCreator, crawl_interval: float = 1.0,
                                           callback: Optional[Callable] = None) -> List[ZhihuContent]:
         """
@@ -525,7 +566,6 @@ class ZhiHuClient(AbstractApiClient):
             offset += limit
             await asyncio.sleep(crawl_interval)
         return all_contents
-
 
     async def get_all_videos_by_creator(self, creator: ZhihuCreator, crawl_interval: float = 1.0,
                                         callback: Optional[Callable] = None) -> List[ZhihuContent]:

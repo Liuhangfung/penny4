@@ -187,19 +187,19 @@ class TieBaCrawler(AbstractCrawler):
         """
         async with semaphore:
             try:
-                utils.logger.info(f"[TieBaCrawler.get_note_detail] Begin get note detail, note_id: {note_id}")
+                utils.logger.info(f"[TieBaCrawler.get_note_detail_async_task] Begin get note detail, note_id: {note_id}")
                 note_detail: TiebaNote = await self.tieba_client.get_note_by_id(note_id)
                 if not note_detail:
                     utils.logger.error(
-                        f"[TieBaCrawler.get_note_detail] Get note detail error, note_id: {note_id}")
+                        f"[TieBaCrawler.get_note_detail_async_task] Get note detail error, note_id: {note_id}")
                     return None
                 return note_detail
             except Exception as ex:
-                utils.logger.error(f"[TieBaCrawler.get_note_detail] Get note detail error: {ex}")
+                utils.logger.error(f"[TieBaCrawler.get_note_detail_async_task] Get note detail error: {ex}")
                 return None
             except KeyError as ex:
                 utils.logger.error(
-                    f"[TieBaCrawler.get_note_detail] have not fund note detail note_id:{note_id}, err: {ex}")
+                    f"[TieBaCrawler.get_note_detail_async_task] have not fund note detail note_id:{note_id}, err: {ex}")
                 return None
 
     async def batch_get_note_comments(self, note_detail_list: List[TiebaNote]):

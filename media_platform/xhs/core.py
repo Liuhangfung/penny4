@@ -123,7 +123,7 @@ class XiaoHongShuCrawler(AbstractCrawler):
                         break
                     semaphore = asyncio.Semaphore(config.MAX_CONCURRENCY_NUM)
                     task_list = [
-                        self.get_note_detail(
+                        self.get_note_detail_async_task(
                             note_id=post_item.get("id"),
                             xsec_source=post_item.get("xsec_source"),
                             xsec_token=post_item.get("xsec_token"),
@@ -189,7 +189,7 @@ class XiaoHongShuCrawler(AbstractCrawler):
         """
         semaphore = asyncio.Semaphore(config.MAX_CONCURRENCY_NUM)
         task_list = [
-            self.get_note_detail(
+            self.get_note_detail_async_task(
                 note_id=post_item.get("note_id", ""),
                 xsec_source=post_item.get("xsec_source", ""),
                 xsec_token=post_item.get("xsec_token", ""),
@@ -214,7 +214,7 @@ class XiaoHongShuCrawler(AbstractCrawler):
         for full_note_url in config.XHS_SPECIFIED_NOTE_URL_LIST:
             note_url_info: NoteUrlInfo = parse_note_info_from_note_url(full_note_url)
             utils.logger.info(f"[XiaoHongShuCrawler.get_specified_notes] Parse note url info: {note_url_info}")
-            crawler_task = self.get_note_detail(
+            crawler_task = self.get_note_detail_async_task(
                 note_id=note_url_info.note_id,
                 xsec_source=note_url_info.xsec_source,
                 xsec_token=note_url_info.xsec_token,
@@ -230,7 +230,7 @@ class XiaoHongShuCrawler(AbstractCrawler):
                 await xhs_store.update_xhs_note(note_detail)
         await self.batch_get_note_comments(need_get_comment_note_ids)
 
-    async def get_note_detail(self, note_id: str, xsec_source: str, xsec_token: str, semaphore: asyncio.Semaphore) -> \
+    async def get_note_detail_async_task(self, note_id: str, xsec_source: str, xsec_token: str, semaphore: asyncio.Semaphore) -> \
             Optional[Dict]:
         """
         Get note detail
@@ -245,21 +245,26 @@ class XiaoHongShuCrawler(AbstractCrawler):
         """
         async with semaphore:
             try:
-                utils.logger.info(f"[XiaoHongShuCrawler.get_note_detail] Begin get note detail, note_id: {note_id}")
-                note_detail: Dict = await self.xhs_client.get_note_by_id(note_id, xsec_source, xsec_token)
-                utils.logger.info(f"[XiaoHongShuCrawler.get_note_detail] Get note detail: {note_detail}")
+                utils.logger.info(f"[XiaoHongShuCrawler.get_note_detail_async_task] Begin get note detail, note_id: {note_id}")
+                try:
+                    note_detail: Dict = await self.xhs_client.get_note_by_id_from_html(note_id, xsec_source, xsec_token)
+                except Exception as note_detail_error:
+                    utils.logger.warn(f"[XiaoHongShuCrawler.get_note_detail_async_task] 通过HTML中获取帖子详情失败, 尝试从接口获取, 原因：{note_detail_error}")
+                    note_detail: Dict = await self.xhs_client.get_note_by_id(note_id, xsec_source, xsec_token)
+
+                utils.logger.info(f"[XiaoHongShuCrawler.get_note_detail_async_task] Get note detail: {note_detail}")
                 if not note_detail:
                     utils.logger.error(
-                        f"[XiaoHongShuCrawler.get_note_detail] Get note detail error, note_id: {note_id}")
+                        f"[XiaoHongShuCrawler.get_note_detail_async_task] Get note detail error, note_id: {note_id}")
                     return None
                 note_detail.update({"xsec_token": xsec_token, "xsec_source": xsec_source})
                 return note_detail
             except DataFetchError as ex:
-                utils.logger.error(f"[XiaoHongShuCrawler.get_note_detail] Get note detail error: {ex}")
+                utils.logger.error(f"[XiaoHongShuCrawler.get_note_detail_async_task] Get note detail error: {ex}")
                 return None
             except KeyError as ex:
                 utils.logger.error(
-                    f"[XiaoHongShuCrawler.get_note_detail] have not fund note detail note_id:{note_id}, err: {ex}")
+                    f"[XiaoHongShuCrawler.get_note_detail_async_task] have not fund note detail note_id:{note_id}, err: {ex}")
                 return None
 
     async def batch_get_note_comments(self, note_list: List[str]):

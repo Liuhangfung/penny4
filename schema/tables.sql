@@ -510,8 +510,8 @@ CREATE TABLE `zhihu_creator` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='知乎创作者';
 
 
-alter table bilibili_video_comment add column `like_count` int NOT NULL DEFAULT '0' COMMENT '点赞数';
-alter table douyin_aweme_comment add column `like_count` int NOT NULL DEFAULT '0' COMMENT '点赞数';
-alter table kuaishou_video_comment add column `like_count` int NOT NULL DEFAULT '0' COMMENT '点赞数';
-alter table weibo_note_comment add column `like_count` int NOT NULL DEFAULT '0' COMMENT '点赞数';
-alter table xhs_note_comment add column `like_count` int NOT NULL DEFAULT '0' COMMENT '点赞数';
+alter table bilibili_video_comment add column `like_count` varchar(255) NOT NULL DEFAULT '0' COMMENT '点赞数';
+alter table douyin_aweme_comment add column `like_count` varchar(255) NOT NULL DEFAULT '0' COMMENT '点赞数';
+alter table kuaishou_video_comment add column `like_count` varchar(255) NOT NULL DEFAULT '0' COMMENT '点赞数';
+alter table weibo_note_comment add column `like_count` varchar(255) NOT NULL DEFAULT '0' COMMENT '点赞数';
+alter table xhs_note_comment add column `like_count` varchar(255) NOT NULL DEFAULT '0' COMMENT '点赞数';

@@ -11,6 +11,7 @@
 > 推荐使用Chrome浏览器，插件安装好之后，登录账号，点击插件，复制cookies即可。 <br>
 >
 > 提醒1：zhihu的cookies要用搜索结果页面的，否则搜索接口无法使用
+> 
 > 提醒2：weibo的cookies要是H5页面：https://m.weibo.cn/ （可以在PC地址：https://www.weibo.com/ 登录后F12然后选择手机模式刷新面就进入H5了）
 
 Cookie-Editor 工具提取示意图：

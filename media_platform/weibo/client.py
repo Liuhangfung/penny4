@@ -462,7 +462,6 @@ class WeiboClient:
 
             notes_has_more = notes_res.get("cardlistInfo", {}).get("total", 0) > crawler_total_count
             since_id = notes_res.get("cardlistInfo", {}).get("since_id", "0")
-            notes_has_more += 10
             if "cards" not in notes_res:
                 utils.logger.info(
                     f"[WeiboClient.get_all_notes_by_creator] No 'notes' key found in response: {notes_res}")

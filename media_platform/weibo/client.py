@@ -461,6 +461,7 @@ class WeiboClient:
                 break
 
             notes_has_more = notes_res.get("cardlistInfo", {}).get("total", 0) > crawler_total_count
+            crawler_total_count += 10
             since_id = notes_res.get("cardlistInfo", {}).get("since_id", "0")
             if "cards" not in notes_res:
                 utils.logger.info(

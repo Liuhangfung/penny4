@@ -393,14 +393,11 @@ class WeiboClient:
         """
         uri = "/api/container/getIndex"
         container_info = await self.get_creator_container_info(creator_id)
-        if container_info.get("fid_container_id") == "" or container_info.get("lfid_container_id") == "":
-            utils.logger.error(f"[WeiboClient.get_creator_info_by_id] get containerid failed")
-            raise DataFetchError("get containerid failed")
         params = {
             "jumpfrom": "weibocom",
             "type": "uid",
             "value": creator_id,
-            "containerid": container_info["fid_container_id"],
+            "containerid": container_info["fid_container_id"] or container_info["lfid_container_id"],
         }
 
         user_res = await self.get(uri, params)

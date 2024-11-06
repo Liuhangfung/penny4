@@ -422,7 +422,6 @@ class WeiboClient:
         Returns:
 
         """
-
         uri = "/api/container/getIndex"
         params = {
             "jumpfrom": "weibocom",

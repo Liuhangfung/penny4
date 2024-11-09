@@ -121,7 +121,7 @@ class ZhihuDbStoreImplement(AbstractStore):
         from .zhihu_store_sql import (add_new_content,
                                       query_content_by_content_id,
                                       update_content_by_content_id)
-        note_id = content_item.get("note_id")
+        note_id = content_item.get("content_id")
         note_detail: Dict = await query_content_by_content_id(content_id=note_id)
         if not note_detail:
             content_item["add_ts"] = utils.get_current_timestamp()

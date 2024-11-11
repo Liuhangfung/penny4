@@ -24,6 +24,8 @@ from pkg.proxy import IpCache, IpInfoModel, ProxyProvider
 from pkg.proxy.types import ProviderNameEnum
 from pkg.tools import utils
 
+# 快代理的IP代理过期时间向前推移5秒
+DELTA_EXPIRED_SECOND = 5
 
 class KuaidailiProxyModel(BaseModel):
     ip: str = Field("ip")
@@ -122,7 +124,7 @@ class KuaiDaiLiProxy(ProxyProvider):
                     port=proxy_model.port,
                     user=self.kdl_user_name,
                     password=self.kdl_user_pwd,
-                    expired_time_ts=proxy_model.expire_ts + utils.get_unix_timestamp(),
+                    expired_time_ts=proxy_model.expire_ts + utils.get_unix_timestamp() - DELTA_EXPIRED_SECOND,
                 )
                 ip_key = f"{self.proxy_brand_name}_{ip_info_model.ip}_{ip_info_model.port}"
                 self.ip_cache.set_ip(ip_key, ip_info_model.model_dump_json(), ex=proxy_model.expire_ts)

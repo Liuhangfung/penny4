@@ -127,7 +127,7 @@ class KuaiDaiLiProxy(ProxyProvider):
                     expired_time_ts=proxy_model.expire_ts + utils.get_unix_timestamp() - DELTA_EXPIRED_SECOND,
                 )
                 ip_key = f"{self.proxy_brand_name}_{ip_info_model.ip}_{ip_info_model.port}"
-                self.ip_cache.set_ip(ip_key, ip_info_model.model_dump_json(), ex=proxy_model.expire_ts)
+                self.ip_cache.set_ip(ip_key, ip_info_model.model_dump_json(), ex=proxy_model.expire_ts - DELTA_EXPIRED_SECOND)
                 ip_infos.append(ip_info_model)
 
         return ip_cache_list + ip_infos

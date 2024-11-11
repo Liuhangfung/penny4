@@ -175,6 +175,13 @@ class ZhihuExtractor:
         res = ZhihuCreator()
         if not author:
             return res
+
+        if author.get("is_anonymous"):
+            res.user_id = "ANONYMOUS"
+            res.user_nickname = "匿名用户"
+            res.user_avatar = author.get("avatar_url") or author.get("avatarUrl")
+            return res
+
         if not author.get("id"):
             author = author.get("member")
         res.user_id = author.get("id")

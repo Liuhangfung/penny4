@@ -143,6 +143,7 @@ class ZhiHuClient(AbstractApiClient):
         Returns:
 
         """
+        await self.check_ip_expired()
         # return response.text
         return_response = kwargs.pop('return_response', False)
 

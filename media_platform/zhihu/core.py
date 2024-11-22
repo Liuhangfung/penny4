@@ -1,12 +1,12 @@
-# 声明：本代码仅供学习和研究目的使用。使用者应遵守以下原则：  
-# 1. 不得用于任何商业用途。  
-# 2. 使用时应遵守目标平台的使用条款和robots.txt规则。  
-# 3. 不得进行大规模爬取或对平台造成运营干扰。  
-# 4. 应合理控制请求频率，避免给目标平台带来不必要的负担。   
+# 声明：本代码仅供学习和研究目的使用。使用者应遵守以下原则：
+# 1. 不得用于任何商业用途。
+# 2. 使用时应遵守目标平台的使用条款和robots.txt规则。
+# 3. 不得进行大规模爬取或对平台造成运营干扰。
+# 4. 应合理控制请求频率，避免给目标平台带来不必要的负担。
 # 5. 不得用于任何非法或不当的用途。
-#   
-# 详细许可条款请参阅项目根目录下的LICENSE文件。  
-# 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。  
+#
+# 详细许可条款请参阅项目根目录下的LICENSE文件。
+# 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。
 
 
 # -*- coding: utf-8 -*-
@@ -48,13 +48,15 @@ class ZhihuCrawler(AbstractCrawler):
         if config.ENABLE_IP_PROXY:
             # zhihu对代理验证还行，可以选择长时长的IP，比如30分钟一个IP
             # 快代理：私密代理->按IP付费->专业版->IP有效时长为30分钟, 购买地址：https://www.kuaidaili.com/?ref=ldwkjqipvz6c
-            proxy_ip_pool = await create_ip_pool(config.IP_PROXY_POOL_COUNT, enable_validate_ip=True)
+            proxy_ip_pool = await create_ip_pool(
+                config.IP_PROXY_POOL_COUNT, enable_validate_ip=True
+            )
 
         # 初始化账号池
         account_with_ip_pool = AccountWithIpPoolManager(
             platform_name=constant.ZHIHU_PLATFORM_NAME,
             account_save_type=config.ACCOUNT_POOL_SAVE_TYPE,
-            proxy_ip_pool=proxy_ip_pool
+            proxy_ip_pool=proxy_ip_pool,
         )
         await account_with_ip_pool.async_initialize()
 
@@ -71,9 +73,12 @@ class ZhihuCrawler(AbstractCrawler):
 
         """
         utils.logger.info(
-            "[ZhihuCrawler.start] Zhihu Crawler start（提醒：zhihu的cookies要用搜索结果页面的cookies，否则搜索接口无法使用） ...")
+            "[ZhihuCrawler.start] Zhihu Crawler start（提醒：zhihu的cookies要用搜索结果页面的cookies，否则搜索接口无法使用） ..."
+        )
         if not await self.zhihu_client.pong():
-            utils.logger.error("[ZhihuCrawler.start] 登录态已经失效，请重新替换Cookies尝试")
+            utils.logger.error(
+                "[ZhihuCrawler.start] 登录态已经失效，请重新替换Cookies尝试"
+            )
             return
 
         if config.CRAWLER_TYPE == "search":
@@ -103,21 +108,31 @@ class ZhihuCrawler(AbstractCrawler):
         start_page = config.START_PAGE
         for keyword in config.KEYWORDS.split(","):
             source_keyword_var.set(keyword)
-            utils.logger.info(f"[ZhihuCrawler.search] Current search keyword: {keyword}")
+            utils.logger.info(
+                f"[ZhihuCrawler.search] Current search keyword: {keyword}"
+            )
             page = 1
-            while (page - start_page + 1) * zhihu_limit_count <= config.CRAWLER_MAX_NOTES_COUNT:
+            while (
+                page - start_page + 1
+            ) * zhihu_limit_count <= config.CRAWLER_MAX_NOTES_COUNT:
                 if page < start_page:
                     utils.logger.info(f"[ZhihuCrawler.search] Skip page {page}")
                     page += 1
                     continue
 
                 try:
-                    utils.logger.info(f"[ZhihuCrawler.search] search zhihu keyword: {keyword}, page: {page}")
-                    content_list: List[ZhihuContent] = await self.zhihu_client.get_note_by_keyword(
-                        keyword=keyword,
-                        page=page,
+                    utils.logger.info(
+                        f"[ZhihuCrawler.search] search zhihu keyword: {keyword}, page: {page}"
                     )
-                    utils.logger.info(f"[ZhihuCrawler.search] Search contents :{content_list}")
+                    content_list: List[ZhihuContent] = (
+                        await self.zhihu_client.get_note_by_keyword(
+                            keyword=keyword,
+                            page=page,
+                        )
+                    )
+                    utils.logger.info(
+                        f"[ZhihuCrawler.search] Search contents :{content_list}"
+                    )
                     if not content_list:
                         utils.logger.info("No more content!")
                         break
@@ -141,17 +156,23 @@ class ZhihuCrawler(AbstractCrawler):
 
         """
         if not config.ENABLE_GET_COMMENTS:
-            utils.logger.info(f"[ZhihuCrawler.batch_get_content_comments] Crawling comment mode is not enabled")
+            utils.logger.info(
+                f"[ZhihuCrawler.batch_get_content_comments] Crawling comment mode is not enabled"
+            )
             return
 
         semaphore = asyncio.Semaphore(config.MAX_CONCURRENCY_NUM)
         task_list: List[Task] = []
         for content_item in content_list:
-            task = asyncio.create_task(self.get_comments(content_item, semaphore), name=content_item.content_id)
+            task = asyncio.create_task(
+                self.get_comments(content_item, semaphore), name=content_item.content_id
+            )
             task_list.append(task)
         await asyncio.gather(*task_list)
 
-    async def get_comments(self, content_item: ZhihuContent, semaphore: asyncio.Semaphore):
+    async def get_comments(
+        self, content_item: ZhihuContent, semaphore: asyncio.Semaphore
+    ):
         """
         Get note comments with keyword filtering and quantity limitation
         Args:
@@ -162,11 +183,13 @@ class ZhihuCrawler(AbstractCrawler):
 
         """
         async with semaphore:
-            utils.logger.info(f"[ZhihuCrawler.get_comments] Begin get note id comments {content_item.content_id}")
+            utils.logger.info(
+                f"[ZhihuCrawler.get_comments] Begin get note id comments {content_item.content_id}"
+            )
             await self.zhihu_client.get_note_all_comments(
                 content=content_item,
                 crawl_interval=random.random(),
-                callback=zhihu_store.batch_update_zhihu_note_comments
+                callback=zhihu_store.batch_update_zhihu_note_comments,
             )
 
     async def get_creators_and_notes(self) -> None:
@@ -175,17 +198,27 @@ class ZhihuCrawler(AbstractCrawler):
         Returns:
 
         """
-        utils.logger.info("[ZhihuCrawler.get_creators_and_notes] Begin get xiaohongshu creators")
+        utils.logger.info(
+            "[ZhihuCrawler.get_creators_and_notes] Begin get xiaohongshu creators"
+        )
         for user_link in config.ZHIHU_CREATOR_URL_LIST:
-            utils.logger.info(f"[ZhihuCrawler.get_creators_and_notes] Begin get creator {user_link}")
+            utils.logger.info(
+                f"[ZhihuCrawler.get_creators_and_notes] Begin get creator {user_link}"
+            )
             user_url_token = user_link.split("/")[-1]
             # get creator detail info from web html content
-            createor_info: ZhihuCreator = await self.zhihu_client.get_creator_info(url_token=user_url_token)
+            createor_info: ZhihuCreator = await self.zhihu_client.get_creator_info(
+                url_token=user_url_token
+            )
             if not createor_info:
-                utils.logger.info(f"[ZhihuCrawler.get_creators_and_notes] Creator {user_url_token} not found")
+                utils.logger.info(
+                    f"[ZhihuCrawler.get_creators_and_notes] Creator {user_url_token} not found"
+                )
                 continue
 
-            utils.logger.info(f"[ZhihuCrawler.get_creators_and_notes] Creator info: {createor_info}")
+            utils.logger.info(
+                f"[ZhihuCrawler.get_creators_and_notes] Creator info: {createor_info}"
+            )
             await zhihu_store.save_creator(creator=createor_info)
 
             # 默认只提取回答信息，如果需要文章和视频，把下面的注释打开即可
@@ -194,7 +227,7 @@ class ZhihuCrawler(AbstractCrawler):
             all_content_list = await self.zhihu_client.get_all_anwser_by_creator(
                 creator=createor_info,
                 crawl_interval=random.random(),
-                callback=zhihu_store.batch_update_zhihu_contents
+                callback=zhihu_store.batch_update_zhihu_contents,
             )
 
             # Get all articles of the creator's contents
@@ -214,7 +247,9 @@ class ZhihuCrawler(AbstractCrawler):
             # Get all comments of the creator's contents
             await self.batch_get_content_comments(all_content_list)
 
-    async def get_note_detail(self, full_note_url: str, semaphore: asyncio.Semaphore) -> Optional[ZhihuContent]:
+    async def get_note_detail(
+        self, full_note_url: str, semaphore: asyncio.Semaphore
+    ) -> Optional[ZhihuContent]:
         """
         Get note detail
         Args:
@@ -225,25 +260,31 @@ class ZhihuCrawler(AbstractCrawler):
 
         """
         async with semaphore:
-            utils.logger.info(f"[ZhihuCrawler.get_specified_notes] Begin get specified note {full_note_url}")
+            utils.logger.info(
+                f"[ZhihuCrawler.get_specified_notes] Begin get specified note {full_note_url}"
+            )
             # judge note type
             note_type: str = judge_zhihu_url(full_note_url)
             if note_type == constant.ANSWER_NAME:
                 question_id = full_note_url.split("/")[-3]
                 answer_id = full_note_url.split("/")[-1]
                 utils.logger.info(
-                    f"[ZhihuCrawler.get_specified_notes] Get answer info, question_id: {question_id}, answer_id: {answer_id}")
+                    f"[ZhihuCrawler.get_specified_notes] Get answer info, question_id: {question_id}, answer_id: {answer_id}"
+                )
                 return await self.zhihu_client.get_answer_info(question_id, answer_id)
 
             elif note_type == constant.ARTICLE_NAME:
                 article_id = full_note_url.split("/")[-1]
-                utils.logger.info(f"[ZhihuCrawler.get_specified_notes] Get article info, article_id: {article_id}")
+                utils.logger.info(
+                    f"[ZhihuCrawler.get_specified_notes] Get article info, article_id: {article_id}"
+                )
                 return await self.zhihu_client.get_article_info(article_id)
-
 
             elif note_type == constant.VIDEO_NAME:
                 video_id = full_note_url.split("/")[-1]
-                utils.logger.info(f"[ZhihuCrawler.get_specified_notes] Get video info, video_id: {video_id}")
+                utils.logger.info(
+                    f"[ZhihuCrawler.get_specified_notes] Get video info, video_id: {video_id}"
+                )
                 return await self.zhihu_client.get_video_info(video_id)
 
     async def get_specified_notes(self):
@@ -258,21 +299,21 @@ class ZhihuCrawler(AbstractCrawler):
             full_note_url = full_note_url.split("?")[0]
             crawler_task = self.get_note_detail(
                 full_note_url=full_note_url,
-                semaphore=asyncio.Semaphore(config.MAX_CONCURRENCY_NUM)
+                semaphore=asyncio.Semaphore(config.MAX_CONCURRENCY_NUM),
             )
             get_note_detail_task_list.append(crawler_task)
 
-        need_get_comment_notes: List[ZhihuContent]= []
+        need_get_comment_notes: List[ZhihuContent] = []
         note_details = await asyncio.gather(*get_note_detail_task_list)
         for index, note_detail in enumerate(note_details):
             if not note_detail:
-                utils.logger.info(f"[ZhihuCrawler.get_specified_notes] Note {config.ZHIHU_SPECIFIED_ID_LIST[index]} not found")
+                utils.logger.info(
+                    f"[ZhihuCrawler.get_specified_notes] Note {config.ZHIHU_SPECIFIED_ID_LIST[index]} not found"
+                )
                 continue
 
-            note_detail = cast(ZhihuContent, note_detail) # only for type check
+            note_detail = cast(ZhihuContent, note_detail)  # only for type check
             need_get_comment_notes.append(note_detail)
             await zhihu_store.update_zhihu_content(note_detail)
 
         await self.batch_get_content_comments(need_get_comment_notes)
-
-

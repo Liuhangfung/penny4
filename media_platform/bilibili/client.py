@@ -1,12 +1,12 @@
-# 声明：本代码仅供学习和研究目的使用。使用者应遵守以下原则：  
-# 1. 不得用于任何商业用途。  
-# 2. 使用时应遵守目标平台的使用条款和robots.txt规则。  
-# 3. 不得进行大规模爬取或对平台造成运营干扰。  
-# 4. 应合理控制请求频率，避免给目标平台带来不必要的负担。   
+# 声明：本代码仅供学习和研究目的使用。使用者应遵守以下原则：
+# 1. 不得用于任何商业用途。
+# 2. 使用时应遵守目标平台的使用条款和robots.txt规则。
+# 3. 不得进行大规模爬取或对平台造成运营干扰。
+# 4. 应合理控制请求频率，避免给目标平台带来不必要的负担。
 # 5. 不得用于任何非法或不当的用途。
-#   
-# 详细许可条款请参阅项目根目录下的LICENSE文件。  
-# 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。  
+#
+# 详细许可条款请参阅项目根目录下的LICENSE文件。
+# 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。
 
 
 # -*- coding: utf-8 -*-
@@ -38,10 +38,10 @@ from .field import CommentOrderType, SearchOrderType
 
 class BilibiliClient(AbstractApiClient):
     def __init__(
-            self,
-            timeout: int = 10,
-            user_agent: str = None,
-            account_with_ip_pool: AccountWithIpPoolManager = None
+        self,
+        timeout: int = 10,
+        user_agent: str = None,
+        account_with_ip_pool: AccountWithIpPoolManager = None,
     ):
         """
         bilibili client constructor
@@ -69,7 +69,11 @@ class BilibiliClient(AbstractApiClient):
 
     @property
     def _proxies(self):
-        return self.account_info.ip_info.format_httpx_proxy() if self.account_info.ip_info else None
+        return (
+            self.account_info.ip_info.format_httpx_proxy()
+            if self.account_info.ip_info
+            else None
+        )
 
     @property
     def _cookies(self):
@@ -81,7 +85,18 @@ class BilibiliClient(AbstractApiClient):
         Returns:
 
         """
-        self.account_info = await self.account_with_ip_pool.get_account_with_ip_info()
+        have_account = False
+        while not have_account:
+            utils.logger.info(
+                f"[BilibiliClient.update_account_info] try to get a new account"
+            )
+            account_info = await self.account_with_ip_pool.get_account_with_ip_info()
+            self.account_info = account_info
+            have_account = await self.pong()
+            if not have_account:
+                utils.logger.info(
+                    f"[BilibiliClient.update_account_info] current account {account_info.account.account_name} is invalid, try to get a new one"
+                )
 
     async def mark_account_invalid(self, account_with_ip: AccountWithIpModel):
         """
@@ -93,7 +108,9 @@ class BilibiliClient(AbstractApiClient):
 
         """
         if self.account_with_ip_pool:
-            await self.account_with_ip_pool.mark_account_invalid(account_with_ip.account)
+            await self.account_with_ip_pool.mark_account_invalid(
+                account_with_ip.account
+            )
             await self.account_with_ip_pool.mark_ip_invalid(account_with_ip.ip_info)
 
     async def pre_request_data(self, req_data: Dict) -> Dict:
@@ -104,10 +121,7 @@ class BilibiliClient(AbstractApiClient):
         """
         if not req_data:
             return {}
-        sign_req = BilibliSignRequest(
-            req_data=req_data,
-            cookies=self._cookies
-        )
+        sign_req = BilibliSignRequest(req_data=req_data, cookies=self._cookies)
         sign_resp = await self._sign_client.bilibili_sign(sign_req)
         req_data.update({"wts": sign_resp.data.wts, "w_rid": sign_resp.data.w_rid})
         return req_data
@@ -119,12 +133,19 @@ class BilibiliClient(AbstractApiClient):
         Returns:
 
         """
-        if config.ENABLE_IP_PROXY and self.account_info.ip_info and self.account_info.ip_info.is_expired:
+        if (
+            config.ENABLE_IP_PROXY
+            and self.account_info.ip_info
+            and self.account_info.ip_info.is_expired
+        ):
             utils.logger.info(
                 f"[BilibiliClient.request] current ip {self.account_info.ip_info.ip} is expired, "
-                f"mark it invalid and try to get a new one")
+                f"mark it invalid and try to get a new one"
+            )
             await self.account_with_ip_pool.mark_ip_invalid(self.account_info.ip_info)
-            self.account_info.ip_info = await self.account_with_ip_pool.proxy_ip_pool.get_proxy()
+            self.account_info.ip_info = (
+                await self.account_with_ip_pool.proxy_ip_pool.get_proxy()
+            )
 
     @retry(stop=stop_after_attempt(5), wait=wait_fixed(1))
     async def request(self, method, url, **kwargs) -> Union[Response, Dict]:
@@ -140,24 +161,29 @@ class BilibiliClient(AbstractApiClient):
         """
         await self.check_ip_expired()
         async with httpx.AsyncClient(proxies=self._proxies) as client:
-            response = await client.request(
-                method, url, timeout=self.timeout,
-                **kwargs
-            )
+            response = await client.request(method, url, timeout=self.timeout, **kwargs)
         try:
             data: Dict = response.json()
             if data.get("code") != 0:
-                if data.get("code") == -404: # 这种情况多半是请求的资源不可见了（被隐藏了或者被删除了）
-                    utils.logger.warn(f"[BilibiliClient.request] 请求失败: {url}, error: {data.get('message')}")
+                if (
+                    data.get("code") == -404
+                ):  # 这种情况多半是请求的资源不可见了（被隐藏了或者被删除了）
+                    utils.logger.warn(
+                        f"[BilibiliClient.request] 请求失败: {url}, error: {data.get('message')}"
+                    )
                     return {}
                 raise DataFetchError(data.get("message", "unkonw error"))
             else:
                 return data.get("data", {})
         except Exception as e:
-            utils.logger.error(f"[BilibiliClient.request] 请求失败: {url}, error: {e}, response: {response.text}")
+            utils.logger.error(
+                f"[BilibiliClient.request] 请求失败: {url}, error: {e}, response: {response.text}"
+            )
             raise DataFetchError("数据请求失败")
 
-    async def get(self, uri: str, params=None, enable_params_sign: bool = True, **kwargs) -> Union[Dict, Response]:
+    async def get(
+        self, uri: str, params=None, enable_params_sign: bool = True, **kwargs
+    ) -> Union[Dict, Response]:
         """
         GET请求，对请求头参数进行签名
         Args:
@@ -173,23 +199,37 @@ class BilibiliClient(AbstractApiClient):
             if enable_params_sign:
                 params = await self.pre_request_data(params)
             if isinstance(params, dict):
-                final_uri = (f"{uri}?"
-                             f"{urlencode(params)}")
-            return await self.request(method="GET", url=f"{BILI_API_URL}{final_uri}", headers=self.headers, **kwargs)
+                final_uri = f"{uri}?" f"{urlencode(params)}"
+            return await self.request(
+                method="GET",
+                url=f"{BILI_API_URL}{final_uri}",
+                headers=self.headers,
+                **kwargs,
+            )
         except RetryError as e:
             # 获取原始异常
             original_exception = e.last_attempt.exception()
-            traceback.print_exception(type(original_exception), original_exception, original_exception.__traceback__)
+            traceback.print_exception(
+                type(original_exception),
+                original_exception,
+                original_exception.__traceback__,
+            )
 
-            utils.logger.error(f"[BilibiliClient.get] 重试了5次: {uri} 请求，均失败了，尝试更换账号与IP再次发起重试, error: {e}")
+            utils.logger.error(
+                f"[BilibiliClient.get] 重试了5次: {uri} 请求，均失败了，尝试更换账号与IP再次发起重试, error: {e}"
+            )
             await self.mark_account_invalid(self.account_info)
             await self.update_account_info()
             if enable_params_sign:
                 params = await self.pre_request_data(params)
             if isinstance(params, dict):
-                final_uri = (f"{uri}?"
-                             f"{urlencode(params)}")
-            return await self.request(method="GET", url=f"{BILI_API_URL}{final_uri}", headers=self.headers, **kwargs)
+                final_uri = f"{uri}?" f"{urlencode(params)}"
+            return await self.request(
+                method="GET",
+                url=f"{BILI_API_URL}{final_uri}",
+                headers=self.headers,
+                **kwargs,
+            )
 
     async def post(self, uri: str, data: dict) -> Union[Dict, Response]:
         """
@@ -203,21 +243,35 @@ class BilibiliClient(AbstractApiClient):
         """
         try:
             data = await self.pre_request_data(data)
-            json_str = json.dumps(data, separators=(',', ':'), ensure_ascii=False)
-            return await self.request(method="POST", url=f"{BILI_API_URL}{uri}",
-                                      data=json_str, headers=self.headers)
+            json_str = json.dumps(data, separators=(",", ":"), ensure_ascii=False)
+            return await self.request(
+                method="POST",
+                url=f"{BILI_API_URL}{uri}",
+                data=json_str,
+                headers=self.headers,
+            )
         except RetryError as e:
             # 获取原始异常
             original_exception = e.last_attempt.exception()
-            traceback.print_exception(type(original_exception), original_exception, original_exception.__traceback__)
+            traceback.print_exception(
+                type(original_exception),
+                original_exception,
+                original_exception.__traceback__,
+            )
 
-            utils.logger.error(f"[BilibiliClient.post] 重试了5次: {uri} 请求，均失败了，尝试更换账号与IP再次发起重试")
+            utils.logger.error(
+                f"[BilibiliClient.post] 重试了5次: {uri} 请求，均失败了，尝试更换账号与IP再次发起重试"
+            )
             await self.mark_account_invalid(self.account_info)
             await self.update_account_info()
             data = await self.pre_request_data(data)
-            json_str = json.dumps(data, separators=(',', ':'), ensure_ascii=False)
-            return await self.request(method="POST", url=f"{BILI_API_URL}{uri}",
-                                      data=json_str, headers=self.headers)
+            json_str = json.dumps(data, separators=(",", ":"), ensure_ascii=False)
+            return await self.request(
+                method="POST",
+                url=f"{BILI_API_URL}{uri}",
+                data=json_str,
+                headers=self.headers,
+            )
 
     async def pong(self) -> bool:
         """
@@ -229,17 +283,26 @@ class BilibiliClient(AbstractApiClient):
         ping_flag = False
         try:
             check_login_uri = "/x/web-interface/nav"
-            response = await self.get(check_login_uri)
-            if response.get("isLogin"):
+            async with httpx.AsyncClient(proxies=self._proxies) as client:
+                response = await client.get(
+                    f"{BILI_API_URL}{check_login_uri}",
+                    headers=self.headers,
+                )
+            res = response.json()
+            if res and res.get("code") == 0 and res.get("data").get("isLogin"):
                 ping_flag = True
         except Exception as e:
-            utils.logger.error(
-                f"[BilibiliClient.pong] Pong bilibili failed: {e}")
+            utils.logger.error(f"[BilibiliClient.pong] Pong bilibili failed: {e}")
             ping_flag = False
         return ping_flag
 
-    async def search_video_by_keyword(self, keyword: str, page: int = 1, page_size: int = 20,
-                                      order: SearchOrderType = SearchOrderType.DEFAULT):
+    async def search_video_by_keyword(
+        self,
+        keyword: str,
+        page: int = 1,
+        page_size: int = 20,
+        order: SearchOrderType = SearchOrderType.DEFAULT,
+    ):
         """
         search video by keyword
         Args:
@@ -257,11 +320,13 @@ class BilibiliClient(AbstractApiClient):
             "keyword": keyword,
             "page": page,
             "page_size": page_size,
-            "order": order.value
+            "order": order.value,
         }
         return await self.get(uri, post_data)
 
-    async def get_video_info(self, aid: Optional[int] = None, bvid: Optional[str] = None) -> Dict:
+    async def get_video_info(
+        self, aid: Optional[int] = None, bvid: Optional[str] = None
+    ) -> Dict:
         """
         Bilibli web video detail api, aid 和 bvid任选一个参数
         Args:
@@ -282,8 +347,12 @@ class BilibiliClient(AbstractApiClient):
             params.update({"bvid": bvid})
         return await self.get(uri, params, enable_params_sign=True)
 
-    async def get_video_comments(self, video_id: str, order_mode: CommentOrderType = CommentOrderType.DEFAULT,
-                                 next_page: int = 0) -> Dict:
+    async def get_video_comments(
+        self,
+        video_id: str,
+        order_mode: CommentOrderType = CommentOrderType.DEFAULT,
+        next_page: int = 0,
+    ) -> Dict:
         """
         获取视频评论
         Args:
@@ -300,12 +369,18 @@ class BilibiliClient(AbstractApiClient):
             "mode": order_mode.value,
             "type": 1,
             "ps": 20,
-            "next": next_page
+            "next": next_page,
         }
         return await self.get(uri, post_data)
 
-    async def get_video_sub_comments(self, video_id: str, root_comment_id: str, pn: int, ps: int,
-                                     order_mode: CommentOrderType):
+    async def get_video_sub_comments(
+        self,
+        video_id: str,
+        root_comment_id: str,
+        pn: int,
+        ps: int,
+        order_mode: CommentOrderType,
+    ):
         """
         获取
         Args:
@@ -329,8 +404,12 @@ class BilibiliClient(AbstractApiClient):
         }
         return await self.get(uri, params)
 
-    async def get_video_all_comments(self, video_id: str, crawl_interval: float = 1.0,
-                                     callback: Optional[Callable] = None):
+    async def get_video_all_comments(
+        self,
+        video_id: str,
+        crawl_interval: float = 1.0,
+        callback: Optional[Callable] = None,
+    ):
         """
         获取视频所有评论
         Args:
@@ -346,7 +425,9 @@ class BilibiliClient(AbstractApiClient):
         is_end = False
         next_page = 0
         while not is_end:
-            comments_res = await self.get_video_comments(video_id, CommentOrderType.DEFAULT, next_page)
+            comments_res = await self.get_video_comments(
+                video_id, CommentOrderType.DEFAULT, next_page
+            )
             cursor_info: Dict = comments_res.get("cursor")
             comment_list: List[Dict] = comments_res.get("replies", [])
             is_end = cursor_info.get("is_end")
@@ -355,16 +436,27 @@ class BilibiliClient(AbstractApiClient):
                 await callback(video_id, comment_list)
             await asyncio.sleep(crawl_interval)
             result.extend(comment_list)
-            if PER_NOTE_MAX_COMMENTS_COUNT and len(result) >= PER_NOTE_MAX_COMMENTS_COUNT:
+            if (
+                PER_NOTE_MAX_COMMENTS_COUNT
+                and len(result) >= PER_NOTE_MAX_COMMENTS_COUNT
+            ):
                 utils.logger.info(
-                    f"[BilibiliClient.get_note_all_comments] The number of comments exceeds the limit: {PER_NOTE_MAX_COMMENTS_COUNT}")
+                    f"[BilibiliClient.get_note_all_comments] The number of comments exceeds the limit: {PER_NOTE_MAX_COMMENTS_COUNT}"
+                )
                 break
-            sub_comments = await self.get_comments_all_sub_comments(video_id, comment_list, crawl_interval, callback)
+            sub_comments = await self.get_comments_all_sub_comments(
+                video_id, comment_list, crawl_interval, callback
+            )
             result.extend(sub_comments)
         return result
 
-    async def get_comments_all_sub_comments(self, video_id: str, comments: List[Dict], crawl_interval: float = 1.0,
-                                            callback: Optional[Callable] = None) -> List[Dict]:
+    async def get_comments_all_sub_comments(
+        self,
+        video_id: str,
+        comments: List[Dict],
+        crawl_interval: float = 1.0,
+        callback: Optional[Callable] = None,
+    ) -> List[Dict]:
         """
         获取指定一级评论下的所有二级评论, 该方法会一直查找一级评论下的所有二级评论信息
         Args:
@@ -396,20 +488,27 @@ class BilibiliClient(AbstractApiClient):
                     root_comment_id=rpid,
                     pn=page_num,
                     ps=page_size,
-                    order_mode=CommentOrderType.DEFAULT
+                    order_mode=CommentOrderType.DEFAULT,
                 )
                 sub_comments = sub_comments_res.get("replies", [])
                 if callback:
                     await callback(video_id, sub_comments)
                 await asyncio.sleep(crawl_interval)
                 result.extend(sub_comments)
-                sub_comment_has_more = sub_comments_res.get("page").get("count") > page_num * page_size
+                sub_comment_has_more = (
+                    sub_comments_res.get("page").get("count") > page_num * page_size
+                )
                 page_num += 1
 
         return result
 
-    async def get_creator_videos(self, creator_id: str, page_num: int, page_size: int = 30,
-                                 order_mode: SearchOrderType = SearchOrderType.LAST_PUBLISH) -> Dict:
+    async def get_creator_videos(
+        self,
+        creator_id: str,
+        page_num: int,
+        page_size: int = 30,
+        order_mode: SearchOrderType = SearchOrderType.LAST_PUBLISH,
+    ) -> Dict:
         """
         获取创作者的视频列表
         Args:
@@ -430,8 +529,11 @@ class BilibiliClient(AbstractApiClient):
         }
         return await self.get(uri, post_data)
 
-    async def get_all_videos_by_creator(self, creator_id: str,
-                                        order_mode: SearchOrderType = SearchOrderType.LAST_PUBLISH) -> List[Dict]:
+    async def get_all_videos_by_creator(
+        self,
+        creator_id: str,
+        order_mode: SearchOrderType = SearchOrderType.LAST_PUBLISH,
+    ) -> List[Dict]:
         """
         获取创作者的所有视频
         Args:
@@ -446,7 +548,9 @@ class BilibiliClient(AbstractApiClient):
         page_size = 30
         has_more = True
         while has_more:
-            videos_res = await self.get_creator_videos(creator_id, page_num, page_size, order_mode)
+            videos_res = await self.get_creator_videos(
+                creator_id, page_num, page_size, order_mode
+            )
             video_list = videos_res.get("list", {}).get("vlist", [])
             result.extend(video_list)
             has_more = videos_res.get("page").get("count") > page_num * page_size

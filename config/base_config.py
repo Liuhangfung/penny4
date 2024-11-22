@@ -15,7 +15,7 @@ from typing import List
 
 from constant import EXCEL_ACCOUNT_SAVE
 
-PLATFORM = "xhs"
+PLATFORM = "wb"
 KEYWORDS = "python,golang"
 
 # 具体值参见media_platform.xxx.field下的枚举值，暂时只支持小红书
@@ -23,7 +23,7 @@ SORT_TYPE = "popularity_descending"
 
 # 具体值参见media_platform.xxx.field下的枚举值，暂时只支持抖音
 PUBLISH_TIME_TYPE = 0
-CRAWLER_TYPE = "search"  # 爬取类型，search(关键词搜索) | detail(帖子详情)| creator(创作者主页数据)
+CRAWLER_TYPE = "creator"  # 爬取类型，search(关键词搜索) | detail(帖子详情)| creator(创作者主页数据)
 
 # 数据保存类型选项配置,支持三种类型：csv、db、json
 SAVE_DATA_OPTION = "db"  # csv or db or json
@@ -78,7 +78,7 @@ WEIBO_SPECIFIED_ID_LIST = [
 ]
 # 指定weibo创作者ID列表
 WEIBO_CREATOR_ID_LIST = [
-    "5533390220",
+    "7368601887 ",
     # ........................
 ]
 

@@ -1,12 +1,12 @@
-# 声明：本代码仅供学习和研究目的使用。使用者应遵守以下原则：  
-# 1. 不得用于任何商业用途。  
-# 2. 使用时应遵守目标平台的使用条款和robots.txt规则。  
-# 3. 不得进行大规模爬取或对平台造成运营干扰。  
-# 4. 应合理控制请求频率，避免给目标平台带来不必要的负担。   
+# 声明：本代码仅供学习和研究目的使用。使用者应遵守以下原则：
+# 1. 不得用于任何商业用途。
+# 2. 使用时应遵守目标平台的使用条款和robots.txt规则。
+# 3. 不得进行大规模爬取或对平台造成运营干扰。
+# 4. 应合理控制请求频率，避免给目标平台带来不必要的负担。
 # 5. 不得用于任何非法或不当的用途。
-#   
-# 详细许可条款请参阅项目根目录下的LICENSE文件。  
-# 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。  
+#
+# 详细许可条款请参阅项目根目录下的LICENSE文件。
+# 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。
 
 
 import asyncio
@@ -37,11 +37,11 @@ from .help import CommonVerfiyParams
 
 class DouYinApiClient(AbstractApiClient):
     def __init__(
-            self,
-            timeout: int = 10,
-            user_agent: str = None,
-            common_verfiy_params: CommonVerfiyParams = None,
-            account_with_ip_pool: AccountWithIpPoolManager = None,
+        self,
+        timeout: int = 10,
+        user_agent: str = None,
+        common_verfiy_params: CommonVerfiyParams = None,
+        account_with_ip_pool: AccountWithIpPoolManager = None,
     ):
         """
         dy client constructor
@@ -67,12 +67,16 @@ class DouYinApiClient(AbstractApiClient):
             "Cookie": self._cookies,
             "origin": "https://www.douyin.com",
             "referer": "https://www.douyin.com/",
-            "user-agent": self._user_agent
+            "user-agent": self._user_agent,
         }
 
     @property
     def _proxies(self):
-        return self.account_info.ip_info.format_httpx_proxy() if self.account_info.ip_info else None
+        return (
+            self.account_info.ip_info.format_httpx_proxy()
+            if self.account_info.ip_info
+            else None
+        )
 
     @property
     def _cookies(self):
@@ -122,7 +126,18 @@ class DouYinApiClient(AbstractApiClient):
         Returns:
 
         """
-        self.account_info = await self.account_with_ip_pool.get_account_with_ip_info()
+        have_account = False
+        while not have_account:
+            utils.logger.info(
+                f"[DouYinApiClient.update_account_info] try to get a new account"
+            )
+            account_info = await self.account_with_ip_pool.get_account_with_ip_info()
+            self.account_info = account_info
+            have_account = await self.pong()
+            if not have_account:
+                utils.logger.info(
+                    f"[DouYinApiClient.update_account_info] current account {account_info.account.account_name} is invalid, try to get a new one"
+                )
 
     async def mark_account_invalid(self, account_with_ip: AccountWithIpModel):
         """
@@ -134,7 +149,9 @@ class DouYinApiClient(AbstractApiClient):
 
         """
         if self.account_with_ip_pool:
-            await self.account_with_ip_pool.mark_account_invalid(account_with_ip.account)
+            await self.account_with_ip_pool.mark_account_invalid(
+                account_with_ip.account
+            )
             await self.account_with_ip_pool.mark_ip_invalid(account_with_ip.ip_info)
 
     async def _pre_url_params(self, uri: str, url_params: Dict) -> Dict:
@@ -155,7 +172,7 @@ class DouYinApiClient(AbstractApiClient):
             uri=uri,
             query_params=query_params,
             user_agent=self._user_agent,
-            cookies=self._cookies
+            cookies=self._cookies,
         )
         dy_sign_resp = await self._sign_client.douyin_sign(sign_req=sign_req)
         final_url_params["a_bogus"] = dy_sign_resp.data.a_bogus
@@ -168,12 +185,19 @@ class DouYinApiClient(AbstractApiClient):
         Returns:
 
         """
-        if config.ENABLE_IP_PROXY and self.account_info.ip_info and self.account_info.ip_info.is_expired:
+        if (
+            config.ENABLE_IP_PROXY
+            and self.account_info.ip_info
+            and self.account_info.ip_info.is_expired
+        ):
             utils.logger.info(
                 f"[DouYinApiClient.request] current ip {self.account_info.ip_info.ip} is expired, "
-                f"mark it invalid and try to get a new one")
+                f"mark it invalid and try to get a new one"
+            )
             await self.account_with_ip_pool.mark_ip_invalid(self.account_info.ip_info)
-            self.account_info.ip_info = await self.account_with_ip_pool.proxy_ip_pool.get_proxy()
+            self.account_info.ip_info = (
+                await self.account_with_ip_pool.proxy_ip_pool.get_proxy()
+            )
 
     @retry(stop=stop_after_attempt(5), wait=wait_fixed(1))
     async def request(self, method, url, **kwargs) -> Union[Response, Dict]:
@@ -196,17 +220,16 @@ class DouYinApiClient(AbstractApiClient):
             kwargs["headers"] = self._headers
 
         async with httpx.AsyncClient(proxies=self._proxies) as client:
-            response = await client.request(
-                method, url, timeout=self.timeout,
-                **kwargs
-            )
+            response = await client.request(method, url, timeout=self.timeout, **kwargs)
 
         if need_return_ori_response:
             return response
 
         try:
             if response.text == "" or response.text == "blocked":
-                utils.logger.error(f"request params incrr, response.text: {response.text}")
+                utils.logger.error(
+                    f"request params incrr, response.text: {response.text}"
+                )
                 raise Exception("account blocked")
             return response.json()
         except Exception as e:
@@ -224,18 +247,28 @@ class DouYinApiClient(AbstractApiClient):
         """
         try:
             params = await self._pre_url_params(uri, params)
-            return await self.request(method="GET", url=f"{DOUYIN_API_URL}{uri}", params=params, **kwargs)
+            return await self.request(
+                method="GET", url=f"{DOUYIN_API_URL}{uri}", params=params, **kwargs
+            )
         except RetryError as e:
             # 获取原始异常
             original_exception = e.last_attempt.exception()
-            traceback.print_exception(type(original_exception), original_exception, original_exception.__traceback__)
-            utils.logger.error(f"[DouYinApiClient.get] 重试了5次: {uri} 请求，均失败了，尝试更换账号与IP再次发起重试")
+            traceback.print_exception(
+                type(original_exception),
+                original_exception,
+                original_exception.__traceback__,
+            )
+            utils.logger.error(
+                f"[DouYinApiClient.get] 重试了5次: {uri} 请求，均失败了，尝试更换账号与IP再次发起重试"
+            )
 
             # 如果重试了5次次都还是异常了，那么尝试更换账号信息
             await self.mark_account_invalid(self.account_info)
             await self.update_account_info()
             params = await self._pre_url_params(uri, params)
-            return await self.request(method="GET", url=f"{DOUYIN_API_URL}{uri}", params=params, **kwargs)
+            return await self.request(
+                method="GET", url=f"{DOUYIN_API_URL}{uri}", params=params, **kwargs
+            )
 
     async def pong(self) -> bool:
         """
@@ -243,13 +276,17 @@ class DouYinApiClient(AbstractApiClient):
         Returns:
 
         """
-        res = await self.query_user_self_info()
-        if res and res.get("user_uid") and res.get("id"):
-            # 这个res中会返回当前登录用户的相关信息，其中包含了：user_agent,则更新当前的user_agent
-            if res.get("user_agent"):
-                self._user_agent = res.get("user_agent")
-            return True
-        utils.logger.error(f"[DouYinApiClient.pong] pong failed, query user self response: {res}")
+        try:
+            res = await self.query_user_self_info()
+            if res and res.get("user_uid") and res.get("id"):
+                # 这个res中会返回当前登录用户的相关信息，其中包含了：user_agent,则更新当前的user_agent
+                if res.get("user_agent"):
+                    self._user_agent = res.get("user_agent")
+                return True
+        except Exception as e:
+            utils.logger.error(
+                f"[DouYinApiClient.pong] pong failed, query user self response: {e}"
+            )
         return False
 
     async def query_user_self_info(self) -> Dict:
@@ -262,16 +299,22 @@ class DouYinApiClient(AbstractApiClient):
         params = {}
         params.update(self._common_params)
         params.update(self._verify_params)
-        return await self.get(uri, params)
+        # params = await self._pre_url_params(uri, params)
+        async with httpx.AsyncClient(proxies=self._proxies) as client:
+            response = await client.get(
+                f"{DOUYIN_API_URL}{uri}", params=params, headers=self._headers
+            )
+
+        return response.json()
 
     async def search_info_by_keyword(
-            self,
-            keyword: str,
-            offset: int = 0,
-            search_channel: SearchChannelType = SearchChannelType.GENERAL,
-            sort_type: SearchSortType = SearchSortType.GENERAL,
-            publish_time: PublishTimeType = PublishTimeType.UNLIMITED,
-            search_id: str = ""
+        self,
+        keyword: str,
+        offset: int = 0,
+        search_channel: SearchChannelType = SearchChannelType.GENERAL,
+        sort_type: SearchSortType = SearchSortType.GENERAL,
+        publish_time: PublishTimeType = PublishTimeType.UNLIMITED,
+        search_id: str = "",
     ):
         """
         搜索信息
@@ -287,24 +330,30 @@ class DouYinApiClient(AbstractApiClient):
 
         """
         query_params = {
-            'search_channel': search_channel.value,
-            'enable_history': '1',
-            'keyword': keyword,
-            'search_source': 'tab_search',
-            'query_correct_type': '1',
-            'is_filter_search': '0',
-            'from_group_id': '7378810571505847586',
-            'offset': offset,
-            'count': '10',
-            'need_filter_settings': '1',
-            'list_type': 'multi',
-            'search_id': search_id
+            "search_channel": search_channel.value,
+            "enable_history": "1",
+            "keyword": keyword,
+            "search_source": "tab_search",
+            "query_correct_type": "1",
+            "is_filter_search": "0",
+            "from_group_id": "7378810571505847586",
+            "offset": offset,
+            "count": "10",
+            "need_filter_settings": "1",
+            "list_type": "multi",
+            "search_id": search_id,
         }
-        if sort_type.value != SearchSortType.GENERAL.value or publish_time.value != PublishTimeType.UNLIMITED.value:
-            query_params["filter_selected"] = json.dumps({
-                "sort_type": str(sort_type.value),
-                "publish_time": str(publish_time.value)
-            }, separators=(',', ':'))
+        if (
+            sort_type.value != SearchSortType.GENERAL.value
+            or publish_time.value != PublishTimeType.UNLIMITED.value
+        ):
+            query_params["filter_selected"] = json.dumps(
+                {
+                    "sort_type": str(sort_type.value),
+                    "publish_time": str(publish_time.value),
+                },
+                separators=(",", ":"),
+            )
             query_params["is_filter_search"] = 1
             query_params["search_source"] = "tab_search"
         return await self.get("/aweme/v1/web/general/search/single/", query_params)
@@ -318,9 +367,7 @@ class DouYinApiClient(AbstractApiClient):
         Returns:
 
         """
-        params = {
-            "aweme_id": aweme_id
-        }
+        params = {"aweme_id": aweme_id}
         headers = copy.copy(self._headers)
         if "Origin" in headers:
             del headers["Origin"]
@@ -338,16 +385,15 @@ class DouYinApiClient(AbstractApiClient):
 
         """
         uri = "/aweme/v1/web/comment/list/"
-        params = {
-            "aweme_id": aweme_id,
-            "cursor": cursor,
-            "count": 20,
-            "item_type": 0
-        }
+        params = {"aweme_id": aweme_id, "cursor": cursor, "count": 20, "item_type": 0}
         keywords = request_keyword_var.get()
-        referer_url = "https://www.douyin.com/search/" + keywords + '?aid=3a3cec5a-9e27-4040-b6aa-ef548c2c1138&publish_time=0&sort_type=0&source=search_history&type=general'
+        referer_url = (
+            "https://www.douyin.com/search/"
+            + keywords
+            + "?aid=3a3cec5a-9e27-4040-b6aa-ef548c2c1138&publish_time=0&sort_type=0&source=search_history&type=general"
+        )
         headers = copy.copy(self._headers)
-        headers["Referer"] = urllib.parse.quote(referer_url, safe=':/')
+        headers["Referer"] = urllib.parse.quote(referer_url, safe=":/")
         return await self.get(uri, params, headers=headers)
 
     async def get_sub_comments(self, comment_id: str, cursor: int = 0):
@@ -362,22 +408,26 @@ class DouYinApiClient(AbstractApiClient):
         """
         uri = "/aweme/v1/web/comment/list/reply/"
         params = {
-            'comment_id': comment_id,
+            "comment_id": comment_id,
             "cursor": cursor,
             "count": 20,
             "item_type": 0,
         }
         keywords = request_keyword_var.get()
-        referer_url = "https://www.douyin.com/search/" + keywords + '?aid=3a3cec5a-9e27-4040-b6aa-ef548c2c1138&publish_time=0&sort_type=0&source=search_history&type=general'
+        referer_url = (
+            "https://www.douyin.com/search/"
+            + keywords
+            + "?aid=3a3cec5a-9e27-4040-b6aa-ef548c2c1138&publish_time=0&sort_type=0&source=search_history&type=general"
+        )
         headers = copy.copy(self._headers)
-        headers["Referer"] = urllib.parse.quote(referer_url, safe=':/')
+        headers["Referer"] = urllib.parse.quote(referer_url, safe=":/")
         return await self.get(uri, params, headers=headers)
 
     async def get_aweme_all_comments(
-            self,
-            aweme_id: str,
-            crawl_interval: float = 1.0,
-            callback: Optional[Callable] = None,
+        self,
+        aweme_id: str,
+        crawl_interval: float = 1.0,
+        callback: Optional[Callable] = None,
     ):
         """
         获取视频的所有评论
@@ -402,17 +452,28 @@ class DouYinApiClient(AbstractApiClient):
             result.extend(comments)
             if callback:  # 如果有回调函数，就执行回调函数
                 await callback(aweme_id, comments)
-            if PER_NOTE_MAX_COMMENTS_COUNT and len(result) >= PER_NOTE_MAX_COMMENTS_COUNT:
+            if (
+                PER_NOTE_MAX_COMMENTS_COUNT
+                and len(result) >= PER_NOTE_MAX_COMMENTS_COUNT
+            ):
                 utils.logger.info(
-                    f"[DouYinApiClient.get_note_all_comments] The number of comments exceeds the limit: {PER_NOTE_MAX_COMMENTS_COUNT}")
+                    f"[DouYinApiClient.get_note_all_comments] The number of comments exceeds the limit: {PER_NOTE_MAX_COMMENTS_COUNT}"
+                )
                 break
             await asyncio.sleep(crawl_interval)
-            sub_comments = await self.get_comments_all_sub_comments(aweme_id, comments, crawl_interval, callback)
+            sub_comments = await self.get_comments_all_sub_comments(
+                aweme_id, comments, crawl_interval, callback
+            )
             result.extend(sub_comments)
         return result
 
-    async def get_comments_all_sub_comments(self, aweme_id: str, comments: List[Dict], crawl_interval: float = 1.0,
-                                            callback: Optional[Callable] = None) -> List[Dict]:
+    async def get_comments_all_sub_comments(
+        self,
+        aweme_id: str,
+        comments: List[Dict],
+        crawl_interval: float = 1.0,
+        callback: Optional[Callable] = None,
+    ) -> List[Dict]:
         """
         获取指定一级评论下的所有二级评论, 该方法会一直查找一级评论下的所有二级评论信息
         Args:
@@ -426,7 +487,8 @@ class DouYinApiClient(AbstractApiClient):
         """
         if not config.ENABLE_GET_SUB_COMMENTS:
             utils.logger.info(
-                f"[DouYinApiClient.get_comments_all_sub_comments] Crawling sub_comment mode is not enabled")
+                f"[DouYinApiClient.get_comments_all_sub_comments] Crawling sub_comment mode is not enabled"
+            )
             return []
         result = []
         for comment in comments:
@@ -436,7 +498,9 @@ class DouYinApiClient(AbstractApiClient):
                 sub_comments_has_more = 1
                 sub_comments_cursor = 0
                 while sub_comments_has_more:
-                    sub_comments_res = await self.get_sub_comments(comment_id, sub_comments_cursor)
+                    sub_comments_res = await self.get_sub_comments(
+                        comment_id, sub_comments_cursor
+                    )
                     sub_comments_has_more = sub_comments_res.get("has_more", 0)
                     sub_comments_cursor = sub_comments_res.get("cursor", 0)
                     sub_comments = sub_comments_res.get("comments", [])
@@ -465,7 +529,9 @@ class DouYinApiClient(AbstractApiClient):
         }
         return await self.get(uri, params)
 
-    async def get_user_aweme_posts(self, sec_user_id: str, max_cursor: str = "") -> Dict:
+    async def get_user_aweme_posts(
+        self, sec_user_id: str, max_cursor: str = ""
+    ) -> Dict:
         """
         获取指定用户的所有视频
         Args:
@@ -482,12 +548,14 @@ class DouYinApiClient(AbstractApiClient):
             "max_cursor": max_cursor,
             "locate_query": "false",
             "publish_video_strategy_type": 2,
-            'verifyFp': self.common_verfiy_params.verify_fp,
-            'fp': self.common_verfiy_params.verify_fp
+            "verifyFp": self.common_verfiy_params.verify_fp,
+            "fp": self.common_verfiy_params.verify_fp,
         }
         return await self.get(uri, params)
 
-    async def get_all_user_aweme_posts(self, sec_user_id: str, callback: Optional[Callable] = None):
+    async def get_all_user_aweme_posts(
+        self, sec_user_id: str, callback: Optional[Callable] = None
+    ):
         """
         获取指定用户的所有视频
         Args:
@@ -504,9 +572,14 @@ class DouYinApiClient(AbstractApiClient):
             aweme_post_res = await self.get_user_aweme_posts(sec_user_id, max_cursor)
             posts_has_more = aweme_post_res.get("has_more", 0)
             max_cursor = aweme_post_res.get("max_cursor")
-            aweme_list = aweme_post_res.get("aweme_list") if aweme_post_res.get("aweme_list") else []
+            aweme_list = (
+                aweme_post_res.get("aweme_list")
+                if aweme_post_res.get("aweme_list")
+                else []
+            )
             utils.logger.info(
-                f"[DouYinApiClient.get_all_user_aweme_posts] got sec_user_id:{sec_user_id} video len : {len(aweme_list)}")
+                f"[DouYinApiClient.get_all_user_aweme_posts] got sec_user_id:{sec_user_id} video len : {len(aweme_list)}"
+            )
             if callback:
                 await callback(aweme_list)
             result.extend(aweme_list)

@@ -1,12 +1,12 @@
-# 声明：本代码仅供学习和研究目的使用。使用者应遵守以下原则：  
-# 1. 不得用于任何商业用途。  
-# 2. 使用时应遵守目标平台的使用条款和robots.txt规则。  
-# 3. 不得进行大规模爬取或对平台造成运营干扰。  
-# 4. 应合理控制请求频率，避免给目标平台带来不必要的负担。   
+# 声明：本代码仅供学习和研究目的使用。使用者应遵守以下原则：
+# 1. 不得用于任何商业用途。
+# 2. 使用时应遵守目标平台的使用条款和robots.txt规则。
+# 3. 不得进行大规模爬取或对平台造成运营干扰。
+# 4. 应合理控制请求频率，避免给目标平台带来不必要的负担。
 # 5. 不得用于任何非法或不当的用途。
-#   
-# 详细许可条款请参阅项目根目录下的LICENSE文件。  
-# 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。  
+#
+# 详细许可条款请参阅项目根目录下的LICENSE文件。
+# 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。
 
 
 # -*- coding: utf-8 -*-
@@ -35,10 +35,10 @@ from .graphql import KuaiShouGraphQL
 
 class KuaiShouApiClient(AbstractApiClient):
     def __init__(
-            self,
-            timeout: int = 10,
-            user_agent: str = None,
-            account_with_ip_pool: AccountWithIpPoolManager = None
+        self,
+        timeout: int = 10,
+        user_agent: str = None,
+        account_with_ip_pool: AccountWithIpPoolManager = None,
     ):
         """
         kuaishou client constructor
@@ -67,7 +67,11 @@ class KuaiShouApiClient(AbstractApiClient):
 
     @property
     def _proxies(self):
-        return self.account_info.ip_info.format_httpx_proxy() if self.account_info.ip_info else None
+        return (
+            self.account_info.ip_info.format_httpx_proxy()
+            if self.account_info.ip_info
+            else None
+        )
 
     @property
     def _cookies(self):
@@ -75,11 +79,22 @@ class KuaiShouApiClient(AbstractApiClient):
 
     async def update_account_info(self):
         """
-        更新客户端的账号信息
+        更新客户端的账号信息, 该方法会一直尝试获取新的账号信息，直到获取到一个有效的账号信息
         Returns:
 
         """
-        self.account_info = await self.account_with_ip_pool.get_account_with_ip_info()
+        have_account = False
+        while not have_account:
+            utils.logger.info(
+                f"[KuaiShouApiClient.update_account_info] try to get a new account"
+            )
+            account_info = await self.account_with_ip_pool.get_account_with_ip_info()
+            self.account_info = account_info
+            have_account = await self.pong()
+            if not have_account:
+                utils.logger.info(
+                    f"[KuaiShouApiClient.update_account_info] current account {account_info.account.account_name} is invalid, try to get a new one"
+                )
 
     async def mark_account_invalid(self, account_with_ip: AccountWithIpModel):
         """
@@ -91,7 +106,9 @@ class KuaiShouApiClient(AbstractApiClient):
 
         """
         if self.account_with_ip_pool:
-            await self.account_with_ip_pool.mark_account_invalid(account_with_ip.account)
+            await self.account_with_ip_pool.mark_account_invalid(
+                account_with_ip.account
+            )
             await self.account_with_ip_pool.mark_ip_invalid(account_with_ip.ip_info)
 
     async def check_ip_expired(self):
@@ -101,12 +118,19 @@ class KuaiShouApiClient(AbstractApiClient):
         Returns:
 
         """
-        if config.ENABLE_IP_PROXY and self.account_info.ip_info and self.account_info.ip_info.is_expired:
+        if (
+            config.ENABLE_IP_PROXY
+            and self.account_info.ip_info
+            and self.account_info.ip_info.is_expired
+        ):
             utils.logger.info(
                 f"[KuaiShouApiClient.request] current ip {self.account_info.ip_info.ip} is expired, "
-                f"mark it invalid and try to get a new one")
+                f"mark it invalid and try to get a new one"
+            )
             await self.account_with_ip_pool.mark_ip_invalid(self.account_info.ip_info)
-            self.account_info.ip_info = await self.account_with_ip_pool.proxy_ip_pool.get_proxy()
+            self.account_info.ip_info = (
+                await self.account_with_ip_pool.proxy_ip_pool.get_proxy()
+            )
 
     @retry(stop=stop_after_attempt(5), wait=wait_fixed(1))
     async def request(self, method, url, **kwargs) -> Union[Response, Dict]:
@@ -121,10 +145,7 @@ class KuaiShouApiClient(AbstractApiClient):
 
         """
         async with httpx.AsyncClient(proxies=self._proxies) as client:
-            response = await client.request(
-                method, url, timeout=self.timeout,
-                **kwargs
-            )
+            response = await client.request(method, url, timeout=self.timeout, **kwargs)
         data: Dict = response.json()
         if data.get("errors"):
             raise DataFetchError(data.get("errors", "unkonw error"))
@@ -144,31 +165,52 @@ class KuaiShouApiClient(AbstractApiClient):
         """
         final_uri = uri
         if isinstance(params, dict):
-            final_uri = (f"{uri}?"
-                         f"{urlencode(params)}")
+            final_uri = f"{uri}?" f"{urlencode(params)}"
         try:
-            return await self.request(method="GET", url=f"{KUAISHOU_API}{final_uri}", **kwargs)
+            return await self.request(
+                method="GET", url=f"{KUAISHOU_API}{final_uri}", **kwargs
+            )
         except RetryError as e:
             # 获取原始异常
             original_exception = e.last_attempt.exception()
-            traceback.print_exception(type(original_exception), original_exception, original_exception.__traceback__)
-            utils.logger.error(f"[KuaiShouApiClient.get] 请求uri:{uri} 重试均失败了，尝试更换账号与IP再次发起重试")
+            traceback.print_exception(
+                type(original_exception),
+                original_exception,
+                original_exception.__traceback__,
+            )
+            utils.logger.error(
+                f"[KuaiShouApiClient.get] 请求uri:{uri} 重试均失败了，尝试更换账号与IP再次发起重试"
+            )
             try:
-                utils.logger.info(f"[KuaiShouApiClient.get] 请求uri:{uri} 尝试更换IP再次发起重试...")
-                await self.account_with_ip_pool.mark_ip_invalid(self.account_info.ip_info)
-                self.account_info.ip_info = await self.account_with_ip_pool.proxy_ip_pool.get_proxy()
-                return await self.request(method="GET", url=f"{KUAISHOU_API}{final_uri}", **kwargs)
+                utils.logger.info(
+                    f"[KuaiShouApiClient.get] 请求uri:{uri} 尝试更换IP再次发起重试..."
+                )
+                await self.account_with_ip_pool.mark_ip_invalid(
+                    self.account_info.ip_info
+                )
+                self.account_info.ip_info = (
+                    await self.account_with_ip_pool.proxy_ip_pool.get_proxy()
+                )
+                return await self.request(
+                    method="GET", url=f"{KUAISHOU_API}{final_uri}", **kwargs
+                )
             except RetryError as ee:
                 # 获取原始异常
                 original_exception = ee.last_attempt.exception()
-                traceback.print_exception(type(original_exception), original_exception,
-                                          original_exception.__traceback__)
+                traceback.print_exception(
+                    type(original_exception),
+                    original_exception,
+                    original_exception.__traceback__,
+                )
 
                 utils.logger.error(
-                    f"[KuaiShouApiClient.get] 请求uri:{uri}，IP更换后还是失败，尝试更换账号与IP再次发起重试")
+                    f"[KuaiShouApiClient.get] 请求uri:{uri}，IP更换后还是失败，尝试更换账号与IP再次发起重试"
+                )
                 await self.mark_account_invalid(self.account_info)
                 await self.update_account_info()
-                return await self.request(method="GET", url=f"{KUAISHOU_API}{final_uri}", **kwargs)
+                return await self.request(
+                    method="GET", url=f"{KUAISHOU_API}{final_uri}", **kwargs
+                )
 
     async def post(self, uri: str, data: dict, **kwargs) -> Dict:
         """
@@ -181,34 +223,60 @@ class KuaiShouApiClient(AbstractApiClient):
         Returns:
 
         """
-        json_str = json.dumps(data, separators=(',', ':'), ensure_ascii=False)
+        json_str = json.dumps(data, separators=(",", ":"), ensure_ascii=False)
         try:
-            return await self.request(method="POST", url=f"{KUAISHOU_API}{uri}",
-                                      data=json_str, headers=self.headers)
+            return await self.request(
+                method="POST",
+                url=f"{KUAISHOU_API}{uri}",
+                data=json_str,
+                headers=self.headers,
+            )
         except RetryError as e:
             # 获取原始异常
             original_exception = e.last_attempt.exception()
-            traceback.print_exception(type(original_exception), original_exception,
-                                      original_exception.__traceback__)
+            traceback.print_exception(
+                type(original_exception),
+                original_exception,
+                original_exception.__traceback__,
+            )
 
-            utils.logger.error(f"[KuaiShouApiClient.post] 请求uri:{uri} 重试均失败了，尝试更换账号与IP再次发起重试")
+            utils.logger.error(
+                f"[KuaiShouApiClient.post] 请求uri:{uri} 重试均失败了，尝试更换账号与IP再次发起重试"
+            )
             try:
-                utils.logger.info(f"[KuaiShouApiClient.post] 请求uri:{uri} 尝试更换IP再次发起重试...")
-                await self.account_with_ip_pool.mark_ip_invalid(self.account_info.ip_info)
+                utils.logger.info(
+                    f"[KuaiShouApiClient.post] 请求uri:{uri} 尝试更换IP再次发起重试..."
+                )
+                await self.account_with_ip_pool.mark_ip_invalid(
+                    self.account_info.ip_info
+                )
                 if config.ENABLE_IP_PROXY:
-                    self.account_info.ip_info = await self.account_with_ip_pool.proxy_ip_pool.get_proxy()
-                    return await self.request(method="POST", url=f"{KUAISHOU_API}{uri}", data=json_str, **kwargs)
+                    self.account_info.ip_info = (
+                        await self.account_with_ip_pool.proxy_ip_pool.get_proxy()
+                    )
+                    return await self.request(
+                        method="POST",
+                        url=f"{KUAISHOU_API}{uri}",
+                        data=json_str,
+                        **kwargs,
+                    )
             except RetryError as ee:
                 # 获取原始异常
                 original_exception = ee.last_attempt.exception()
-                traceback.print_exception(type(original_exception), original_exception,
-                                          original_exception.__traceback__)
+                traceback.print_exception(
+                    type(original_exception),
+                    original_exception,
+                    original_exception.__traceback__,
+                )
 
                 utils.logger.error(
-                    f"[KuaiShouApiClient.post]请求uri:{uri}，IP更换后还是失败，尝试更换账号与IP再次发起重试")
+                    f"[KuaiShouApiClient.post]请求uri:{uri}，IP更换后还是失败，尝试更换账号与IP再次发起重试"
+                )
                 await self.mark_account_invalid(self.account_info)
                 await self.update_account_info()
-                return await self.request(method="POST", url=f"{KUAISHOU_API}{uri}", data=json_str, **kwargs)
+                return await self.request(
+                    method="POST", url=f"{KUAISHOU_API}{uri}", data=json_str, **kwargs
+                )
 
     async def pong(self) -> bool:
         """
@@ -224,13 +292,20 @@ class KuaiShouApiClient(AbstractApiClient):
                 "variables": {
                     "ftype": 1,
                 },
-                "query": self._graphql.get("vision_profile_user_list")
+                "query": self._graphql.get("vision_profile_user_list"),
             }
-            res = await self.post("", post_data)
-            if res.get("visionProfileUserList", {}).get("result") == 1:
+            async with httpx.AsyncClient(proxies=self._proxies) as client:
+                response = await client.post(
+                    f"{KUAISHOU_API}", json=post_data, headers=self.headers
+                )
+            res = response.json()
+            vision_profile_user_list = res.get("data", {}).get("visionProfileUserList")
+            if vision_profile_user_list and vision_profile_user_list.get("result") == 1:
                 ping_flag = True
         except Exception as e:
-            utils.logger.error(f"[KuaiShouApiClient.pong] Pong kuaishou failed: {e}, and try to login again...")
+            utils.logger.error(
+                f"[KuaiShouApiClient.pong] Pong kuaishou failed: {e}, and try to login again..."
+            )
             ping_flag = False
         return ping_flag
 
@@ -246,12 +321,8 @@ class KuaiShouApiClient(AbstractApiClient):
         """
         post_data = {
             "operationName": "visionSearchPhoto",
-            "variables": {
-                "keyword": keyword,
-                "pcursor": pcursor,
-                "page": "search"
-            },
-            "query": self._graphql.get("search_query")
+            "variables": {"keyword": keyword, "pcursor": pcursor, "page": "search"},
+            "query": self._graphql.get("search_query"),
         }
         return await self.post("", post_data)
 
@@ -266,11 +337,8 @@ class KuaiShouApiClient(AbstractApiClient):
         """
         post_data = {
             "operationName": "visionVideoDetail",
-            "variables": {
-                "photoId": photo_id,
-                "page": "search"
-            },
-            "query": self._graphql.get("video_detail")
+            "variables": {"photoId": photo_id, "page": "search"},
+            "query": self._graphql.get("video_detail"),
         }
         return await self.post("", post_data)
 
@@ -286,16 +354,13 @@ class KuaiShouApiClient(AbstractApiClient):
         """
         post_data = {
             "operationName": "commentListQuery",
-            "variables": {
-                "photoId": photo_id,
-                "pcursor": pcursor
-            },
-            "query": self._graphql.get("comment_list")
+            "variables": {"photoId": photo_id, "pcursor": pcursor},
+            "query": self._graphql.get("comment_list"),
         }
         return await self.post("", post_data)
 
     async def get_video_sub_comments(
-            self, photo_id: str, root_comment_id: str, pcursor: str = ""
+        self, photo_id: str, root_comment_id: str, pcursor: str = ""
     ) -> Dict:
         """
         获取视频二级评论
@@ -329,9 +394,7 @@ class KuaiShouApiClient(AbstractApiClient):
         """
         post_data = {
             "operationName": "visionProfile",
-            "variables": {
-                "userId": user_id
-            },
+            "variables": {"userId": user_id},
             "query": self._graphql.get("vision_profile"),
         }
         return await self.post("", post_data)
@@ -348,20 +411,16 @@ class KuaiShouApiClient(AbstractApiClient):
         """
         post_data = {
             "operationName": "visionProfilePhotoList",
-            "variables": {
-                "page": "profile",
-                "pcursor": pcursor,
-                "userId": user_id
-            },
+            "variables": {"page": "profile", "pcursor": pcursor, "userId": user_id},
             "query": self._graphql.get("vision_profile_photo_list"),
         }
         return await self.post("", post_data)
 
     async def get_video_all_comments(
-            self,
-            photo_id: str,
-            crawl_interval: float = 1.0,
-            callback: Optional[Callable] = None,
+        self,
+        photo_id: str,
+        crawl_interval: float = 1.0,
+        callback: Optional[Callable] = None,
     ):
         """
         获取视频所有评论，包括一级评论和二级评论
@@ -384,9 +443,13 @@ class KuaiShouApiClient(AbstractApiClient):
             if callback:
                 await callback(photo_id, comments)
             result.extend(comments)
-            if PER_NOTE_MAX_COMMENTS_COUNT and len(result) >= PER_NOTE_MAX_COMMENTS_COUNT:
+            if (
+                PER_NOTE_MAX_COMMENTS_COUNT
+                and len(result) >= PER_NOTE_MAX_COMMENTS_COUNT
+            ):
                 utils.logger.info(
-                    f"[KuaiShouApiClient.get_note_all_comments] The number of comments exceeds the limit: {PER_NOTE_MAX_COMMENTS_COUNT}")
+                    f"[KuaiShouApiClient.get_note_all_comments] The number of comments exceeds the limit: {PER_NOTE_MAX_COMMENTS_COUNT}"
+                )
                 break
             await asyncio.sleep(crawl_interval)
             sub_comments = await self.get_comments_all_sub_comments(
@@ -396,11 +459,11 @@ class KuaiShouApiClient(AbstractApiClient):
         return result
 
     async def get_comments_all_sub_comments(
-            self,
-            comments: List[Dict],
-            photo_id,
-            crawl_interval: float = 1.0,
-            callback: Optional[Callable] = None,
+        self,
+        comments: List[Dict],
+        photo_id,
+        crawl_interval: float = 1.0,
+        callback: Optional[Callable] = None,
     ) -> List[Dict]:
         """
         获取指定一级评论下的所有二级评论, 该方法会一直查找一级评论下的所有二级评论信息
@@ -459,10 +522,10 @@ class KuaiShouApiClient(AbstractApiClient):
         return vision_profile.get("userProfile")
 
     async def get_all_videos_by_creator(
-            self,
-            user_id: str,
-            crawl_interval: float = 1.0,
-            callback: Optional[Callable] = None,
+        self,
+        user_id: str,
+        crawl_interval: float = 1.0,
+        callback: Optional[Callable] = None,
     ) -> List[Dict]:
         """
         获取指定用户下的所有发过的帖子，该方法会一直查找一个用户下的所有帖子信息

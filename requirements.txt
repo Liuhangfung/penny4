@@ -10,3 +10,4 @@ openpyxl
 pandas
 cryptography
 aiohttp
+pyhumps==3.8.0

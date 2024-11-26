@@ -272,45 +272,37 @@ class XiaoHongShuCrawler(AbstractCrawler):
         semaphore: asyncio.Semaphore,
     ) -> Optional[Dict]:
         """
-        Get note detail
+        Get note detail from html or api
+
         Args:
-            note_id:
-            xsec_source:
-            xsec_token:
-            semaphore:
+            note_id: note id
+            xsec_source: xsec source
+            xsec_token: xsec token
+            semaphore: semaphore
 
         Returns:
-
+            note detail
         """
+        note_detail_from_html, note_detail_from_api = None, None
         async with semaphore:
             try:
-                utils.logger.info(
-                    f"[XiaoHongShuCrawler.get_note_detail_async_task] Begin get note detail, note_id: {note_id}"
-                )
-                try:
-                    note_detail: Dict = await self.xhs_client.get_note_by_id_from_html(
+                note_detail_from_html: Optional[Dict] = (
+                    await self.xhs_client.get_note_by_id_from_html(
                         note_id, xsec_source, xsec_token
                     )
-                except Exception as note_detail_error:
-                    utils.logger.warn(
-                        f"[XiaoHongShuCrawler.get_note_detail_async_task] 通过HTML中获取帖子详情失败, 尝试从接口获取, 原因：{note_detail_error}"
-                    )
-                    note_detail: Dict = await self.xhs_client.get_note_by_id(
-                        note_id, xsec_source, xsec_token
-                    )
-
-                utils.logger.info(
-                    f"[XiaoHongShuCrawler.get_note_detail_async_task] Get note detail: {note_detail}"
                 )
-                if not note_detail:
-                    utils.logger.error(
-                        f"[XiaoHongShuCrawler.get_note_detail_async_task] Get note detail error, note_id: {note_id}"
+                if not note_detail_from_html:
+                    note_detail_from_api: Optional[Dict] = (
+                        await self.xhs_client.get_note_by_id(
+                            note_id, xsec_source, xsec_token
+                        )
                     )
-                    return None
-                note_detail.update(
-                    {"xsec_token": xsec_token, "xsec_source": xsec_source}
-                )
-                return note_detail
+                note_detail = note_detail_from_html or note_detail_from_api
+                if note_detail:
+                    note_detail.update(
+                        {"xsec_token": xsec_token, "xsec_source": xsec_source}
+                    )
+                    return note_detail
             except DataFetchError as ex:
                 utils.logger.error(
                     f"[XiaoHongShuCrawler.get_note_detail_async_task] Get note detail error: {ex}"

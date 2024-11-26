@@ -11,6 +11,7 @@
 
 import asyncio
 import json
+import random
 import re
 import traceback
 from typing import Callable, Dict, List, Optional, Union
@@ -39,6 +40,7 @@ from .exception import (
 )
 from .field import SearchNoteType, SearchSortType
 from .help import get_search_id
+from .extractor import XiaoHongShuExtractor
 
 
 class XiaoHongShuClient(AbstractApiClient):
@@ -60,6 +62,7 @@ class XiaoHongShuClient(AbstractApiClient):
         self._sign_client = SignServerClient()
         self.account_with_ip_pool = account_with_ip_pool
         self.account_info: Optional[AccountWithIpModel] = None
+        self._extractor = XiaoHongShuExtractor()
 
     @property
     def headers(self):
@@ -551,7 +554,7 @@ class XiaoHongShuClient(AbstractApiClient):
                 result.extend(comments)
         return result
 
-    async def get_creator_info(self, user_id: str) -> Dict:
+    async def get_creator_info(self, user_id: str) -> Optional[Dict]:
         """
         通过解析网页版的用户主页HTML，获取用户个人简要信息
         PC端用户主页的网页存在window.__INITIAL_STATE__这个变量上的，解析它即可
@@ -565,15 +568,8 @@ class XiaoHongShuClient(AbstractApiClient):
             follow_redirects=True,
             headers=self.headers,
         )
-        match = re.search(
-            r"<script>window.__INITIAL_STATE__=(.+)<\/script>", response.text, re.M
-        )
-        if match is None:
-            return {}
-        info = json.loads(match.group(1).replace(":undefined", ":null"), strict=False)
-        if info is None:
-            return {}
-        return info.get("user").get("userPageData")
+        creator_info = self._extractor.extract_creator_info_from_html(response.text)
+        return creator_info
 
     async def get_notes_by_creator(
         self, creator: str, cursor: str, page_size: int = 30
@@ -641,64 +637,64 @@ class XiaoHongShuClient(AbstractApiClient):
             result.extend(notes)
         return result
 
-    @retry(stop=stop_after_attempt(3), wait=wait_fixed(1))
     async def get_note_by_id_from_html(
         self, note_id: str, xsec_source: str, xsec_token: str
-    ) -> Dict:
+    ) -> Optional[Dict]:
         """
-        通过解析网页版的笔记详情页HTML，获取笔记详情, 该接口可能会出现失败的情况，这里尝试重试3次
-        copy from https://github.com/ReaJason/xhs/blob/eb1c5a0213f6fbb592f0a2897ee552847c69ea2d/xhs/core.py#L217-L259
-        thanks for ReaJason
+        通过解析网页版的笔记详情页HTML，获取笔记详情
+
         Args:
-            note_id:
-            xsec_source:
-            xsec_token:
+            note_id: 笔记ID
+            xsec_source: 渠道来源
+            xsec_token: 搜索关键字之后返回的比较列表中返回的token
 
         Returns:
 
         """
+        req_url = f"{XHS_INDEX_URL}/explore/{note_id}?xsec_token={xsec_token}&xsec_source={xsec_source}"
+        retry_times = 5
+        ip_proxies = self._proxies
+        for current_retry in range(1, retry_times + 1):
+            copy_headers = self.headers.copy()
+            if current_retry <= 3:
+                # 前三次删除cookie，直接不带登录态请求网页
+                del copy_headers["Cookie"]
 
-        def camel_to_underscore(key):
-            return re.sub(r"(?<!^)(?=[A-Z])", "_", key).lower()
-
-        def transform_json_keys(json_data):
-            data_dict = json.loads(json_data)
-            dict_new = {}
-            for key, value in data_dict.items():
-                new_key = camel_to_underscore(key)
-                if not value:
-                    dict_new[new_key] = value
-                elif isinstance(value, dict):
-                    dict_new[new_key] = transform_json_keys(json.dumps(value))
-                elif isinstance(value, list):
-                    dict_new[new_key] = [
-                        (
-                            transform_json_keys(json.dumps(item))
-                            if (item and isinstance(item, dict))
-                            else item
+            async with httpx.AsyncClient(proxies=ip_proxies) as client:
+                try:
+                    reponse = await client.get(req_url, headers=copy_headers)
+                    note_dict = self._extractor.extract_note_detail_from_html(
+                        note_id, reponse.text
+                    )
+                    if note_dict:
+                        utils.logger.info(
+                            f"[XiaoHongShuClient.get_note_by_id_from_html] get note_id:{note_id} detail from html success"
                         )
-                        for item in value
-                    ]
-                else:
-                    dict_new[new_key] = value
-            return dict_new
+                        return note_dict
 
-        url = (
-            "https://www.xiaohongshu.com/explore/"
-            + note_id
-            + f"?xsec_token={xsec_token}&xsec_source={xsec_source}"
-        )
-        reponse = await self.request(
-            method="GET", url=url, return_response=True, headers=self.headers
-        )
-        html = reponse.text
-        state = re.findall(r"window.__INITIAL_STATE__=({.*})</script>", html)[
-            0
-        ].replace("undefined", '""')
-        if state != "{}":
-            note_dict = transform_json_keys(state)
-            return note_dict["note"]["note_detail_map"][note_id]["note"]
-        raise DataFetchError(html)
+                    utils.logger.info(
+                        f"[XiaoHongShuClient.get_note_by_id_from_html] current retried times: {current_retry}"
+                    )
+                    await asyncio.sleep(random.random())
+                    if (
+                        config.ENABLE_IP_PROXY
+                        and current_retry > 1
+                        and current_retry <= 3
+                    ):
+                        try:
+                            ip_proxies = (
+                                self.account_with_ip_pool.proxy_ip_pool.get_proxy()
+                            )
+                        except Exception as e:
+                            utils.logger.error(
+                                f"[XiaoHongShuClient.get_note_by_id_from_html] get proxy error: {e}"
+                            )
+                            ip_proxies = None
+                except Exception as e:
+                    utils.logger.error(
+                        f"[XiaoHongShuClient.get_note_by_id_from_html] 请求笔记详情页失败: {e}"
+                    )
+                    await asyncio.sleep(random.random())
 
     async def get_note_short_url(self, note_id: str) -> Dict:
         """

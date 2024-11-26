@@ -125,6 +125,7 @@ class XiaoHongShuCrawler(AbstractCrawler):
                         f"[XiaoHongShuCrawler.search] search xhs keyword: {keyword}, page: {page}"
                     )
                     note_id_list: List[str] = []
+                    xsec_tokens: List[str] = []
                     notes_res = await self.xhs_client.get_note_by_keyword(
                         keyword=keyword,
                         page=page,
@@ -156,11 +157,12 @@ class XiaoHongShuCrawler(AbstractCrawler):
                         if note_detail:
                             await xhs_store.update_xhs_note(note_detail)
                             note_id_list.append(note_detail.get("note_id", ""))
+                            xsec_tokens.append(note_detail.get("xsec_token", ""))
                     page += 1
                     utils.logger.info(
                         f"[XiaoHongShuCrawler.search] Note details: {note_details}"
                     )
-                    await self.batch_get_note_comments(note_id_list)
+                    await self.batch_get_note_comments(note_id_list, xsec_tokens)
 
                 except Exception as ex:
                     utils.logger.error(
@@ -208,7 +210,10 @@ class XiaoHongShuCrawler(AbstractCrawler):
             )
 
             note_ids = [note_item.get("note_id", "") for note_item in all_notes_list]
-            await self.batch_get_note_comments(note_ids)
+            xsec_tokens = [
+                note_item.get("xsec_token", "") for note_item in all_notes_list
+            ]
+            await self.batch_get_note_comments(note_ids, xsec_tokens)
 
     async def fetch_creator_notes_detail(self, note_list: List[Dict]):
         """
@@ -257,12 +262,14 @@ class XiaoHongShuCrawler(AbstractCrawler):
             get_note_detail_task_list.append(crawler_task)
 
         need_get_comment_note_ids = []
+        xsec_tokens = []
         note_details = await asyncio.gather(*get_note_detail_task_list)
         for note_detail in note_details:
             if note_detail:
                 need_get_comment_note_ids.append(note_detail.get("note_id", ""))
+                xsec_tokens.append(note_detail.get("xsec_token", ""))
                 await xhs_store.update_xhs_note(note_detail)
-        await self.batch_get_note_comments(need_get_comment_note_ids)
+        await self.batch_get_note_comments(need_get_comment_note_ids, xsec_tokens)
 
     async def get_note_detail_async_task(
         self,
@@ -314,7 +321,9 @@ class XiaoHongShuCrawler(AbstractCrawler):
                 )
                 return None
 
-    async def batch_get_note_comments(self, note_list: List[str]):
+    async def batch_get_note_comments(
+        self, note_list: List[str], xsec_tokens: List[str] = []
+    ):
         """
         Batch get note comments
         Args:
@@ -334,19 +343,25 @@ class XiaoHongShuCrawler(AbstractCrawler):
         )
         semaphore = asyncio.Semaphore(config.MAX_CONCURRENCY_NUM)
         task_list: List[Task] = []
-        for note_id in note_list:
+        for index, note_id in enumerate(note_list):
             task = asyncio.create_task(
-                self.get_comments_async_task(note_id, semaphore), name=note_id
+                self.get_comments_async_task(
+                    note_id, semaphore, xsec_token=xsec_tokens[index]
+                ),
+                name=note_id,
             )
             task_list.append(task)
         await asyncio.gather(*task_list)
 
-    async def get_comments_async_task(self, note_id: str, semaphore: asyncio.Semaphore):
+    async def get_comments_async_task(
+        self, note_id: str, semaphore: asyncio.Semaphore, xsec_token: str = ""
+    ):
         """
         Get note comments with keyword filtering and quantity limitation
         Args:
             note_id:
             semaphore:
+            xsec_token:
 
         Returns:
 
@@ -359,4 +374,5 @@ class XiaoHongShuCrawler(AbstractCrawler):
                 note_id=note_id,
                 crawl_interval=random.random(),
                 callback=xhs_store.batch_update_xhs_note_comments,
+                xsec_token=xsec_token,
             )

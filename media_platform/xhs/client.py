@@ -411,13 +411,15 @@ class XiaoHongShuClient(AbstractApiClient):
         )
         return dict()
 
-    async def get_note_comments(self, note_id: str, cursor: str = "") -> Dict:
+    async def get_note_comments(
+        self, note_id: str, cursor: str = "", xsec_token: str = ""
+    ) -> Dict:
         """
         获取一级评论的API
         Args:
             note_id: 笔记ID
             cursor: 分页游标
-
+            xsec_token: 验证token
         Returns:
 
         """
@@ -428,10 +430,17 @@ class XiaoHongShuClient(AbstractApiClient):
             "top_comment_id": "",
             "image_formats": "jpg,webp,avif",
         }
+        if xsec_token:
+            params["xsec_token"] = xsec_token
         return await self.get(uri, params)
 
     async def get_note_sub_comments(
-        self, note_id: str, root_comment_id: str, num: int = 10, cursor: str = ""
+        self,
+        note_id: str,
+        root_comment_id: str,
+        num: int = 10,
+        cursor: str = "",
+        xsec_token: str = "",
     ):
         """
         获取指定父评论下的子评论的API
@@ -440,7 +449,7 @@ class XiaoHongShuClient(AbstractApiClient):
             root_comment_id: 根评论ID
             num: 分页数量
             cursor: 分页游标
-
+            xsec_token: 验证token
         Returns:
 
         """
@@ -451,6 +460,8 @@ class XiaoHongShuClient(AbstractApiClient):
             "num": num,
             "cursor": cursor,
         }
+        if xsec_token:
+            params["xsec_token"] = xsec_token
         return await self.get(uri, params)
 
     async def get_note_all_comments(
@@ -458,6 +469,7 @@ class XiaoHongShuClient(AbstractApiClient):
         note_id: str,
         crawl_interval: float = 1.0,
         callback: Optional[Callable] = None,
+        xsec_token: str = "",
     ) -> List[Dict]:
         """
         获取指定笔记下的所有一级评论，该方法会一直查找一个帖子下的所有评论信息
@@ -473,7 +485,9 @@ class XiaoHongShuClient(AbstractApiClient):
         comments_has_more = True
         comments_cursor = ""
         while comments_has_more:
-            comments_res = await self.get_note_comments(note_id, comments_cursor)
+            comments_res = await self.get_note_comments(
+                note_id, comments_cursor, xsec_token
+            )
             comments_has_more = comments_res.get("has_more", False)
             comments_cursor = comments_res.get("cursor", "")
             if "comments" not in comments_res:
@@ -495,7 +509,7 @@ class XiaoHongShuClient(AbstractApiClient):
                 )
                 break
             sub_comments = await self.get_comments_all_sub_comments(
-                comments, crawl_interval, callback
+                comments, crawl_interval, callback, xsec_token
             )
             result.extend(sub_comments)
         return result
@@ -505,6 +519,7 @@ class XiaoHongShuClient(AbstractApiClient):
         comments: List[Dict],
         crawl_interval: float = 1.0,
         callback: Optional[Callable] = None,
+        xsec_token: str = "",
     ) -> List[Dict]:
         """
         获取指定一级评论下的所有二级评论, 该方法会一直查找一级评论下的所有二级评论信息
@@ -512,6 +527,7 @@ class XiaoHongShuClient(AbstractApiClient):
             comments: 评论列表
             crawl_interval: 爬取一次评论的延迟单位（秒）
             callback: 一次评论爬取结束后
+            xsec_token: 验证token
 
         Returns:
 
@@ -538,7 +554,11 @@ class XiaoHongShuClient(AbstractApiClient):
 
             while sub_comment_has_more:
                 comments_res = await self.get_note_sub_comments(
-                    note_id, root_comment_id, 10, sub_comment_cursor
+                    note_id,
+                    root_comment_id,
+                    10,
+                    sub_comment_cursor,
+                    xsec_token,
                 )
                 sub_comment_has_more = comments_res.get("has_more", False)
                 sub_comment_cursor = comments_res.get("cursor", "")

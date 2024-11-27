@@ -697,9 +697,8 @@ class XiaoHongShuClient(AbstractApiClient):
                     )
                     await asyncio.sleep(random.random())
                     if (
-                        config.ENABLE_IP_PROXY
-                        and current_retry > 1
-                        and current_retry <= 3
+                            config.ENABLE_IP_PROXY
+                            and 1 < current_retry <= 3
                     ):
                         try:
                             ip_proxies = (

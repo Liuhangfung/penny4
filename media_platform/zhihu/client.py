@@ -84,11 +84,23 @@ class ZhiHuClient(AbstractApiClient):
 
     async def update_account_info(self):
         """
-        更新客户端的账号信息
+        更新客户端的账号信息, 该方法会一直尝试获取新的账号信息，直到获取到一个有效的账号信息
         Returns:
 
         """
-        self.account_info = await self.account_with_ip_pool.get_account_with_ip_info()
+        have_account = False
+        while not have_account:
+            utils.logger.info(
+                f"[ZhiHuClient.update_account_info] try to get a new account"
+            )
+            self.account_info = (
+                await self.account_with_ip_pool.get_account_with_ip_info()
+            )
+            have_account = await self.pong()
+            if not have_account:
+                utils.logger.info(
+                    f"[ZhiHuClient.update_account_info] current account {self.account_info.account.account_name} is invalid, try to get a new one"
+                )
 
     async def mark_account_invalid(self, account_with_ip: AccountWithIpModel):
         """
@@ -239,7 +251,9 @@ class ZhiHuClient(AbstractApiClient):
         Returns:
 
         """
-        utils.logger.info("[ZhiHuClient.pong] Begin to pong zhihu...")
+        utils.logger.info(
+            f"[ZhiHuClient.pong] Begin to check account: {self.account_info.account.account_name} login state..."
+        )
         ping_flag = False
         try:
             res = await self.get_current_user_info()
@@ -252,7 +266,7 @@ class ZhiHuClient(AbstractApiClient):
                 )
         except Exception as e:
             utils.logger.error(
-                f"[ZhiHuClient.pong] Ping zhihu failed: {e}, and try to login again..."
+                f"[ZhiHuClient.pong] Ping xhs failed: {e},current account: {self.account_info.account.account_name} and try to login again..."
             )
             ping_flag = False
         return ping_flag
@@ -264,7 +278,15 @@ class ZhiHuClient(AbstractApiClient):
 
         """
         params = {"include": "email,is_active,is_bind_phone"}
-        return await self.get("/api/v4/me", params)
+
+        async with httpx.AsyncClient(proxies=self._proxies) as client:
+            response = await client.get(
+                f"{zhihu_constant.ZHIHU_URL}/api/v4/me",
+                params=params,
+                headers=self.headers,
+            )
+
+        return response.json()
 
     async def get_note_by_keyword(
         self,

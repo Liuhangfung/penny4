@@ -1,12 +1,12 @@
-# 声明：本代码仅供学习和研究目的使用。使用者应遵守以下原则：  
-# 1. 不得用于任何商业用途。  
-# 2. 使用时应遵守目标平台的使用条款和robots.txt规则。  
-# 3. 不得进行大规模爬取或对平台造成运营干扰。  
-# 4. 应合理控制请求频率，避免给目标平台带来不必要的负担。   
+# 声明：本代码仅供学习和研究目的使用。使用者应遵守以下原则：
+# 1. 不得用于任何商业用途。
+# 2. 使用时应遵守目标平台的使用条款和robots.txt规则。
+# 3. 不得进行大规模爬取或对平台造成运营干扰。
+# 4. 应合理控制请求频率，避免给目标平台带来不必要的负担。
 # 5. 不得用于任何非法或不当的用途。
-#   
-# 详细许可条款请参阅项目根目录下的LICENSE文件。  
-# 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。  
+#
+# 详细许可条款请参阅项目根目录下的LICENSE文件。
+# 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。
 
 
 import asyncio
@@ -34,10 +34,10 @@ from .help import TieBaExtractor
 
 class BaiduTieBaClient(AbstractApiClient):
     def __init__(
-            self,
-            timeout: int = 10,
-            user_agent: str = None,
-            account_with_ip_pool: AccountWithIpPoolManager = None
+        self,
+        timeout: int = 10,
+        user_agent: str = None,
+        account_with_ip_pool: AccountWithIpPoolManager = None,
     ):
         """
         tieba client constructor
@@ -64,7 +64,11 @@ class BaiduTieBaClient(AbstractApiClient):
 
     @property
     def _proxies(self):
-        return self.account_info.ip_info.format_httpx_proxy() if self.account_info.ip_info else None
+        return (
+            self.account_info.ip_info.format_httpx_proxy()
+            if self.account_info.ip_info
+            else None
+        )
 
     @property
     def _cookies(self):
@@ -73,11 +77,23 @@ class BaiduTieBaClient(AbstractApiClient):
 
     async def update_account_info(self):
         """
-        更新客户端的账号信息
+        更新客户端的账号信息, 该方法会一直尝试获取新的账号信息，直到获取到一个有效的账号信息
         Returns:
 
         """
-        self.account_info = await self.account_with_ip_pool.get_account_with_ip_info()
+        have_account = False
+        while not have_account:
+            utils.logger.info(
+                f"[BaiduTieBaClient.update_account_info] try to get a new account"
+            )
+            self.account_info = (
+                await self.account_with_ip_pool.get_account_with_ip_info()
+            )
+            have_account = await self.pong()
+            if not have_account:
+                utils.logger.info(
+                    f"[BaiduTieBaClient.update_account_info] current account {self.account_info.account.account_name} is invalid, try to get a new one"
+                )
 
     async def mark_account_invalid(self, account_with_ip: AccountWithIpModel):
         """
@@ -89,7 +105,9 @@ class BaiduTieBaClient(AbstractApiClient):
 
         """
         if self.account_with_ip_pool:
-            await self.account_with_ip_pool.mark_account_invalid(account_with_ip.account)
+            await self.account_with_ip_pool.mark_account_invalid(
+                account_with_ip.account
+            )
             await self.account_with_ip_pool.mark_ip_invalid(account_with_ip.ip_info)
 
     async def check_ip_expired(self):
@@ -99,12 +117,19 @@ class BaiduTieBaClient(AbstractApiClient):
         Returns:
 
         """
-        if config.ENABLE_IP_PROXY and self.account_info.ip_info and self.account_info.ip_info.is_expired:
+        if (
+            config.ENABLE_IP_PROXY
+            and self.account_info.ip_info
+            and self.account_info.ip_info.is_expired
+        ):
             utils.logger.info(
                 f"[BaiduTieBaClient.request] current ip {self.account_info.ip_info.ip} is expired, "
-                f"mark it invalid and try to get a new one")
+                f"mark it invalid and try to get a new one"
+            )
             await self.account_with_ip_pool.mark_ip_invalid(self.account_info.ip_info)
-            self.account_info.ip_info = await self.account_with_ip_pool.proxy_ip_pool.get_proxy()
+            self.account_info.ip_info = (
+                await self.account_with_ip_pool.proxy_ip_pool.get_proxy()
+            )
 
     @retry(stop=stop_after_attempt(5), wait=wait_fixed(1))
     async def request(self, method, url, **kwargs) -> Union[Response, Dict]:
@@ -125,14 +150,17 @@ class BaiduTieBaClient(AbstractApiClient):
 
         async with httpx.AsyncClient(proxies=self._proxies) as client:
             response = await client.request(
-                method, url, timeout=self.timeout,
-                headers=self.headers, **kwargs
+                method, url, timeout=self.timeout, headers=self.headers, **kwargs
             )
 
         if response.status_code != 200:
-            utils.logger.error(f"Request failed, method: {method}, url: {url}, status code: {response.status_code}")
+            utils.logger.error(
+                f"Request failed, method: {method}, url: {url}, status code: {response.status_code}"
+            )
             utils.logger.error(f"Request failed, response: {response.text}")
-            raise Exception(f"Request failed, method: {method}, url: {url}, status code: {response.status_code}")
+            raise Exception(
+                f"Request failed, method: {method}, url: {url}, status code: {response.status_code}"
+            )
 
         if response.text == "" or response.text == "blocked":
             utils.logger.error(f"request params incrr, response.text: {response.text}")
@@ -155,34 +183,55 @@ class BaiduTieBaClient(AbstractApiClient):
         """
         final_uri = uri
         if params and isinstance(params, dict):
-            final_uri = (f"{uri}?"
-                         f"{urlencode(params)}")
+            final_uri = f"{uri}?" f"{urlencode(params)}"
         try:
-            return await self.request(method="GET", url=f"{TIEBA_URL}{final_uri}", **kwargs)
+            return await self.request(
+                method="GET", url=f"{TIEBA_URL}{final_uri}", **kwargs
+            )
         except RetryError as e:
             # 获取原始异常
             original_exception = e.last_attempt.exception()
-            traceback.print_exception(type(original_exception), original_exception, original_exception.__traceback__)
+            traceback.print_exception(
+                type(original_exception),
+                original_exception,
+                original_exception.__traceback__,
+            )
 
-            utils.logger.error(f"[BaiduTieBaClient.get] 请求uri:{uri} 重试均失败了，尝试更换账号与IP再次发起重试")
+            utils.logger.error(
+                f"[BaiduTieBaClient.get] 请求uri:{uri} 重试均失败了，尝试更换账号与IP再次发起重试"
+            )
             try:
-                utils.logger.info(f"[BaiduTieBaClient.get] 请求uri:{uri} 尝试更换IP再次发起重试...")
-                await self.account_with_ip_pool.mark_ip_invalid(self.account_info.ip_info)
+                utils.logger.info(
+                    f"[BaiduTieBaClient.get] 请求uri:{uri} 尝试更换IP再次发起重试..."
+                )
+                await self.account_with_ip_pool.mark_ip_invalid(
+                    self.account_info.ip_info
+                )
                 if config.ENABLE_IP_PROXY:
-                    self.account_info.ip_info = await self.account_with_ip_pool.proxy_ip_pool.get_proxy()
-                    return await self.request(method="GET", url=f"{TIEBA_URL}{final_uri}", **kwargs)
+                    self.account_info.ip_info = (
+                        await self.account_with_ip_pool.proxy_ip_pool.get_proxy()
+                    )
+                    return await self.request(
+                        method="GET", url=f"{TIEBA_URL}{final_uri}", **kwargs
+                    )
 
             except RetryError as ee:
                 # 获取原始异常
                 original_exception = ee.last_attempt.exception()
-                traceback.print_exception(type(original_exception), original_exception,
-                                          original_exception.__traceback__)
+                traceback.print_exception(
+                    type(original_exception),
+                    original_exception,
+                    original_exception.__traceback__,
+                )
 
                 utils.logger.error(
-                    f"[BaiduTieBaClient.get] 请求uri:{uri}，IP更换后还是失败，尝试更换账号与IP再次发起重试")
+                    f"[BaiduTieBaClient.get] 请求uri:{uri}，IP更换后还是失败，尝试更换账号与IP再次发起重试"
+                )
                 await self.mark_account_invalid(self.account_info)
                 await self.update_account_info()
-                return await self.request(method="GET", url=f"{TIEBA_URL}{final_uri}", **kwargs)
+                return await self.request(
+                    method="GET", url=f"{TIEBA_URL}{final_uri}", **kwargs
+                )
 
     async def post(self, uri: str, data: dict, **kwargs) -> Dict:
         """
@@ -194,32 +243,53 @@ class BaiduTieBaClient(AbstractApiClient):
         Returns:
 
         """
-        json_str = json.dumps(data, separators=(',', ':'), ensure_ascii=False)
+        json_str = json.dumps(data, separators=(",", ":"), ensure_ascii=False)
         try:
-            return await self.request(method="POST", url=f"{TIEBA_URL}{uri}", data=json_str, **kwargs)
+            return await self.request(
+                method="POST", url=f"{TIEBA_URL}{uri}", data=json_str, **kwargs
+            )
         except RetryError as e:
             # 获取原始异常
             original_exception = e.last_attempt.exception()
-            traceback.print_exception(type(original_exception), original_exception,
-                                      original_exception.__traceback__)
+            traceback.print_exception(
+                type(original_exception),
+                original_exception,
+                original_exception.__traceback__,
+            )
 
-            utils.logger.error(f"[BaiduTieBaClient.post] 请求uri:{uri} 重试均失败了，尝试更换账号与IP再次发起重试")
+            utils.logger.error(
+                f"[BaiduTieBaClient.post] 请求uri:{uri} 重试均失败了，尝试更换账号与IP再次发起重试"
+            )
             try:
-                utils.logger.info(f"[BaiduTieBaClient.post] 请求uri:{uri} 尝试更换IP再次发起重试...")
-                await self.account_with_ip_pool.mark_ip_invalid(self.account_info.ip_info)
-                self.account_info.ip_info = await self.account_with_ip_pool.proxy_ip_pool.get_proxy()
-                return await self.request(method="POST", url=f"{TIEBA_URL}{uri}", data=json_str, **kwargs)
+                utils.logger.info(
+                    f"[BaiduTieBaClient.post] 请求uri:{uri} 尝试更换IP再次发起重试..."
+                )
+                await self.account_with_ip_pool.mark_ip_invalid(
+                    self.account_info.ip_info
+                )
+                self.account_info.ip_info = (
+                    await self.account_with_ip_pool.proxy_ip_pool.get_proxy()
+                )
+                return await self.request(
+                    method="POST", url=f"{TIEBA_URL}{uri}", data=json_str, **kwargs
+                )
             except RetryError as ee:
                 # 获取原始异常
                 original_exception = ee.last_attempt.exception()
-                traceback.print_exception(type(original_exception), original_exception,
-                                          original_exception.__traceback__)
+                traceback.print_exception(
+                    type(original_exception),
+                    original_exception,
+                    original_exception.__traceback__,
+                )
 
                 utils.logger.error(
-                    f"[BaiduTieBaClient.post]请求uri:{uri}，IP更换后还是失败，尝试更换账号与IP再次发起重试")
+                    f"[BaiduTieBaClient.post]请求uri:{uri}，IP更换后还是失败，尝试更换账号与IP再次发起重试"
+                )
                 await self.mark_account_invalid(self.account_info)
                 await self.update_account_info()
-                return await self.request(method="POST", url=f"{TIEBA_URL}{uri}", data=json_str, **kwargs)
+                return await self.request(
+                    method="POST", url=f"{TIEBA_URL}{uri}", data=json_str, **kwargs
+                )
 
     async def pong(self) -> bool:
         """
@@ -230,24 +300,31 @@ class BaiduTieBaClient(AbstractApiClient):
         utils.logger.info("[BaiduTieBaClient.pong] Begin to pong tieba...")
         try:
             uri = "/mo/q/sync"
-            res: Dict = await self.get(uri)
-            utils.logger.info(f"[BaiduTieBaClient.pong] res: {res}")
+            async with httpx.AsyncClient(proxies=self._proxies) as client:
+                response = await client.get(f"{TIEBA_URL}{uri}", headers=self.headers)
+
+            res: Dict = response.json()
             if res and res.get("no") == 0:
                 ping_flag = True
             else:
-                utils.logger.info(f"[BaiduTieBaClient.pong] user not login, will try to login again...")
+                utils.logger.warn(
+                    f"[BaiduTieBaClient.pong] user not login, will try to login again..."
+                )
                 ping_flag = False
         except Exception as e:
-            utils.logger.error(f"[BaiduTieBaClient.pong] Ping tieba failed: {e}, and try to login again...")
+            utils.logger.error(
+                f"[BaiduTieBaClient.pong] Ping xhs failed: {e},current account: {self.account_info.account.account_name} and try to login again..."
+            )
             ping_flag = False
         return ping_flag
 
     async def get_notes_by_keyword(
-            self, keyword: str,
-            page: int = 1,
-            page_size: int = 10,
-            sort: SearchSortType = SearchSortType.TIME_DESC,
-            note_type: SearchNoteType = SearchNoteType.FIXED_THREAD,
+        self,
+        keyword: str,
+        page: int = 1,
+        page_size: int = 10,
+        sort: SearchSortType = SearchSortType.TIME_DESC,
+        note_type: SearchNoteType = SearchNoteType.FIXED_THREAD,
     ) -> List[TiebaNote]:
         """
         根据关键词搜索贴吧帖子
@@ -267,7 +344,7 @@ class BaiduTieBaClient(AbstractApiClient):
             "rn": page_size,
             "pn": page,
             "sm": sort.value,
-            "only_thread": note_type.value
+            "only_thread": note_type.value,
         }
         response = await self.get(uri, params=params, return_response=True)
         return self._page_extractor.extract_search_note_list(response.text)
@@ -285,8 +362,12 @@ class BaiduTieBaClient(AbstractApiClient):
         response = await self.get(uri, return_response=True)
         return self._page_extractor.extract_note_detail(response.text)
 
-    async def get_note_all_comments(self, note_detail: TiebaNote, crawl_interval: float = 1.0,
-                                    callback: Optional[Callable] = None) -> List[TiebaComment]:
+    async def get_note_all_comments(
+        self,
+        note_detail: TiebaNote,
+        crawl_interval: float = 1.0,
+        callback: Optional[Callable] = None,
+    ) -> List[TiebaComment]:
         """
         获取指定帖子下的所有一级评论，该方法会一直查找一个帖子下的所有评论信息
         Args:
@@ -301,29 +382,38 @@ class BaiduTieBaClient(AbstractApiClient):
         result: List[TiebaComment] = []
         current_page = 1
         while note_detail.total_replay_page >= current_page:
-            params = {
-                "pn": current_page
-            }
+            params = {"pn": current_page}
             response = await self.get(uri, params=params, return_response=True)
-            comments = self._page_extractor.extract_tieba_note_parment_comments(response.text,
-                                                                                note_id=note_detail.note_id)
+            comments = self._page_extractor.extract_tieba_note_parment_comments(
+                response.text, note_id=note_detail.note_id
+            )
             if not comments:
                 break
             if callback:
                 await callback(note_detail.note_id, comments)
             result.extend(comments)
-            if PER_NOTE_MAX_COMMENTS_COUNT and len(result) >= PER_NOTE_MAX_COMMENTS_COUNT:
+            if (
+                PER_NOTE_MAX_COMMENTS_COUNT
+                and len(result) >= PER_NOTE_MAX_COMMENTS_COUNT
+            ):
                 utils.logger.info(
-                    f"[BaiduTieBaClient.get_note_all_comments] The number of comments exceeds the limit: {PER_NOTE_MAX_COMMENTS_COUNT}")
+                    f"[BaiduTieBaClient.get_note_all_comments] The number of comments exceeds the limit: {PER_NOTE_MAX_COMMENTS_COUNT}"
+                )
                 break
             # 获取所有子评论
-            await self.get_comments_all_sub_comments(comments, crawl_interval=crawl_interval, callback=callback)
+            await self.get_comments_all_sub_comments(
+                comments, crawl_interval=crawl_interval, callback=callback
+            )
             await asyncio.sleep(crawl_interval)
             current_page += 1
         return result
 
-    async def get_comments_all_sub_comments(self, comments: List[TiebaComment], crawl_interval: float = 1.0,
-                                            callback: Optional[Callable] = None) -> List[TiebaComment]:
+    async def get_comments_all_sub_comments(
+        self,
+        comments: List[TiebaComment],
+        crawl_interval: float = 1.0,
+        callback: Optional[Callable] = None,
+    ) -> List[TiebaComment]:
         """
         获取指定评论下的所有子评论
         Args:
@@ -350,11 +440,12 @@ class BaiduTieBaClient(AbstractApiClient):
                     "tid": parment_comment.note_id,  # 帖子ID
                     "pid": parment_comment.comment_id,  # 父级评论ID
                     "fid": parment_comment.tieba_id,  # 贴吧ID
-                    "pn": current_page  # 页码
+                    "pn": current_page,  # 页码
                 }
                 response = await self.get(uri, params=params, return_response=True)
-                sub_comments = self._page_extractor.extract_tieba_note_sub_comments(response.text,
-                                                                                    parent_comment=parment_comment)
+                sub_comments = self._page_extractor.extract_tieba_note_sub_comments(
+                    response.text, parent_comment=parment_comment
+                )
 
                 if not sub_comments:
                     break
@@ -365,7 +456,9 @@ class BaiduTieBaClient(AbstractApiClient):
                 current_page += 1
         return all_sub_comments
 
-    async def get_notes_by_tieba_name(self, tieba_name: str, page_num: int) -> List[TiebaNote]:
+    async def get_notes_by_tieba_name(
+        self, tieba_name: str, page_num: int
+    ) -> List[TiebaNote]:
         """
         根据贴吧名称获取帖子列表
         Args:
@@ -379,7 +472,6 @@ class BaiduTieBaClient(AbstractApiClient):
         response = await self.get(uri, return_response=True)
         return self._page_extractor.extract_tieba_note_list(response.text)
 
-
     async def get_creator_info_by_url(self, creator_url: str) -> TiebaCreator:
         """
         根据创作者ID获取创作者信息
@@ -389,7 +481,9 @@ class BaiduTieBaClient(AbstractApiClient):
         Returns:
 
         """
-        creator_res = await self.request(method="GET", url=creator_url, return_response=True)
+        creator_res = await self.request(
+            method="GET", url=creator_url, return_response=True
+        )
         return self._page_extractor.extract_creator_info(creator_res.text)
 
     async def get_notes_by_creator(self, user_name: str, page_number: int) -> Dict:
@@ -407,14 +501,17 @@ class BaiduTieBaClient(AbstractApiClient):
             "un": user_name,
             "pn": page_number,
             "id": "utf-8",
-            "_": utils.get_current_timestamp()
+            "_": utils.get_current_timestamp(),
         }
         return await self.get(uri, params=params)
 
-    async def get_all_notes_by_creator_user_name(self,
-                                                 user_name: str, crawl_interval: float = 1.0,
-                                                 callback: Optional[Callable] = None,
-                                                 max_note_count: int = 0) -> List[TiebaNote]:
+    async def get_all_notes_by_creator_user_name(
+        self,
+        user_name: str,
+        crawl_interval: float = 1.0,
+        callback: Optional[Callable] = None,
+        max_note_count: int = 0,
+    ) -> List[TiebaNote]:
         """
         根据创作者用户名获取创作者所有帖子
         Args:
@@ -431,19 +528,25 @@ class BaiduTieBaClient(AbstractApiClient):
         page_number = 1
         page_per_count = 20
         total_get_count = 0
-        while notes_has_more == 1 and (max_note_count == 0 or total_get_count < max_note_count):
+        while notes_has_more == 1 and (
+            max_note_count == 0 or total_get_count < max_note_count
+        ):
             notes_res = await self.get_notes_by_creator(user_name, page_number)
             if not notes_res or notes_res.get("no") != 0:
                 utils.logger.error(
-                    f"[BaiduTieBaClient.get_notes_by_creator] got user_name:{user_name} notes failed, notes_res: {notes_res}")
+                    f"[BaiduTieBaClient.get_notes_by_creator] got user_name:{user_name} notes failed, notes_res: {notes_res}"
+                )
                 break
             notes_data = notes_res.get("data")
             notes_has_more = notes_data.get("has_more")
             notes = notes_data["thread_list"]
             utils.logger.info(
-                f"[BaiduTieBaClient.get_all_notes_by_creator] got user_name:{user_name} notes len : {len(notes)}")
+                f"[BaiduTieBaClient.get_all_notes_by_creator] got user_name:{user_name} notes len : {len(notes)}"
+            )
 
-            note_detail_task = [self.get_note_by_id(note['thread_id']) for note in notes]
+            note_detail_task = [
+                self.get_note_by_id(note["thread_id"]) for note in notes
+            ]
             notes = await asyncio.gather(*note_detail_task)
             if callback:
                 await callback(notes)

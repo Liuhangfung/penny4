@@ -17,12 +17,9 @@ import time
 import httpx
 from pydantic import BaseModel, Field
 
-from constant.douyin import (
-    DOUYIN_FIXED_USER_AGENT,
-    DOUYIN_MS_TOKEN_REQ_STR_DATA,
-    DOUYIN_MS_TOKEN_REQ_URL,
-    DOUYIN_WEBID_REQ_URL,
-)
+from constant.douyin import (DOUYIN_FIXED_USER_AGENT,
+                             DOUYIN_MS_TOKEN_REQ_STR_DATA,
+                             DOUYIN_MS_TOKEN_REQ_URL, DOUYIN_WEBID_REQ_URL)
 from pkg.async_http_client import AsyncHTTPClient
 from pkg.tools import utils
 

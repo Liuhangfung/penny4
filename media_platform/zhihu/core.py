@@ -42,7 +42,9 @@ class ZhihuCrawler(AbstractCrawler):
 
         """
         utils.logger.info("[ZhihuCrawler.async_initialize] Begin async initialize")
-
+        utils.logger.info(
+            "[ZhihuCrawler.start] Zhihu Crawler start（提醒：zhihu的cookies要用搜索结果页面的cookies，否则搜索接口无法使用） ..."
+        )
         # 账号池和IP池的初始化
         proxy_ip_pool: Optional[ProxyIpPool] = None
         if config.ENABLE_IP_PROXY:
@@ -72,14 +74,6 @@ class ZhihuCrawler(AbstractCrawler):
         Returns:
 
         """
-        utils.logger.info(
-            "[ZhihuCrawler.start] Zhihu Crawler start（提醒：zhihu的cookies要用搜索结果页面的cookies，否则搜索接口无法使用） ..."
-        )
-        if not await self.zhihu_client.pong():
-            utils.logger.error(
-                "[ZhihuCrawler.start] 登录态已经失效，请重新替换Cookies尝试"
-            )
-            return
 
         if config.CRAWLER_TYPE == "search":
             # Search for notes and retrieve their comment information.

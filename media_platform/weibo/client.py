@@ -1,12 +1,12 @@
-# 声明：本代码仅供学习和研究目的使用。使用者应遵守以下原则：  
-# 1. 不得用于任何商业用途。  
-# 2. 使用时应遵守目标平台的使用条款和robots.txt规则。  
-# 3. 不得进行大规模爬取或对平台造成运营干扰。  
-# 4. 应合理控制请求频率，避免给目标平台带来不必要的负担。   
+# 声明：本代码仅供学习和研究目的使用。使用者应遵守以下原则：
+# 1. 不得用于任何商业用途。
+# 2. 使用时应遵守目标平台的使用条款和robots.txt规则。
+# 3. 不得进行大规模爬取或对平台造成运营干扰。
+# 4. 应合理控制请求频率，避免给目标平台带来不必要的负担。
 # 5. 不得用于任何非法或不当的用途。
-#   
-# 详细许可条款请参阅项目根目录下的LICENSE文件。  
-# 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。  
+#
+# 详细许可条款请参阅项目根目录下的LICENSE文件。
+# 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。
 
 
 # -*- coding: utf-8 -*-
@@ -42,10 +42,10 @@ class WeiboClient:
     account_info: AccountWithIpModel
 
     def __init__(
-            self,
-            timeout: int = 10,
-            user_agent: str = None,
-            account_with_ip_pool: AccountWithIpPoolManager = None
+        self,
+        timeout: int = 10,
+        user_agent: str = None,
+        account_with_ip_pool: AccountWithIpPoolManager = None,
     ):
         """
         weibo client constructor
@@ -71,7 +71,11 @@ class WeiboClient:
 
     @property
     def _proxies(self):
-        return self.account_info.ip_info.format_httpx_proxy() if self.account_info.ip_info else None
+        return (
+            self.account_info.ip_info.format_httpx_proxy()
+            if self.account_info.ip_info
+            else None
+        )
 
     @property
     def _cookies(self):
@@ -79,11 +83,23 @@ class WeiboClient:
 
     async def update_account_info(self):
         """
-        更新客户端的账号信息
+        更新客户端的账号信息, 该方法会一直尝试获取新的账号信息，直到获取到一个有效的账号信息
         Returns:
 
         """
-        self.account_info = await self.account_with_ip_pool.get_account_with_ip_info()
+        have_account = False
+        while not have_account:
+            utils.logger.info(
+                f"[WeiboClient.update_account_info] try to get a new account"
+            )
+            self.account_info = (
+                await self.account_with_ip_pool.get_account_with_ip_info()
+            )
+            have_account = await self.pong()
+            if not have_account:
+                utils.logger.info(
+                    f"[WeiboClient.update_account_info] current account {self.account_info.account.account_name} is invalid, try to get a new one"
+                )
 
     async def mark_account_invalid(self, account_with_ip: AccountWithIpModel):
         """
@@ -95,7 +111,9 @@ class WeiboClient:
 
         """
         if self.account_with_ip_pool:
-            await self.account_with_ip_pool.mark_account_invalid(account_with_ip.account)
+            await self.account_with_ip_pool.mark_account_invalid(
+                account_with_ip.account
+            )
             await self.account_with_ip_pool.mark_ip_invalid(account_with_ip.ip_info)
 
     async def check_ip_expired(self):
@@ -105,12 +123,19 @@ class WeiboClient:
         Returns:
 
         """
-        if config.ENABLE_IP_PROXY and self.account_info.ip_info and self.account_info.ip_info.is_expired:
+        if (
+            config.ENABLE_IP_PROXY
+            and self.account_info.ip_info
+            and self.account_info.ip_info.is_expired
+        ):
             utils.logger.info(
                 f"[BaiduTieBaClient.request] current ip {self.account_info.ip_info.ip} is expired, "
-                f"mark it invalid and try to get a new one")
+                f"mark it invalid and try to get a new one"
+            )
             await self.account_with_ip_pool.mark_ip_invalid(self.account_info.ip_info)
-            self.account_info.ip_info = await cast(ProxyIpPool, self.account_with_ip_pool.proxy_ip_pool).get_proxy()
+            self.account_info.ip_info = await cast(
+                ProxyIpPool, self.account_with_ip_pool.proxy_ip_pool
+            ).get_proxy()
 
     @retry(stop=stop_after_attempt(5), wait=wait_fixed(1))
     async def request(self, method, url, **kwargs) -> Union[Response, Dict]:
@@ -131,8 +156,7 @@ class WeiboClient:
         headers = kwargs.pop("headers", None) or self.headers
         async with httpx.AsyncClient(proxies=self._proxies) as client:
             response = await client.request(
-                method, url, timeout=self.timeout, headers=headers,
-                **kwargs
+                method, url, timeout=self.timeout, headers=headers, **kwargs
             )
 
         if need_return_ori_response:
@@ -141,7 +165,9 @@ class WeiboClient:
         data = response.json()
         if data.get("ok") not in [1, 0]:
             # 0和1是正常的返回码，其他的都是异常，0代表无数据，1代表有数据
-            utils.logger.error(f"[WeiboClient.request] request {method}:{url} err, res:{data}")
+            utils.logger.error(
+                f"[WeiboClient.request] request {method}:{url} err, res:{data}"
+            )
             raise DataFetchError(data.get("msg", "unkonw error"))
         else:
             return cast(Dict, data.get("data", {}))
@@ -158,29 +184,43 @@ class WeiboClient:
         """
         final_uri = uri
         if isinstance(params, dict):
-            final_uri = (f"{uri}?"
-                         f"{urlencode(params)}")
+            final_uri = f"{uri}?" f"{urlencode(params)}"
 
         try:
-            res = await self.request(method="GET", url=f"{WEIBO_API_URL}{final_uri}", **kwargs)
+            res = await self.request(
+                method="GET", url=f"{WEIBO_API_URL}{final_uri}", **kwargs
+            )
             return res
         except RetryError:
-            utils.logger.error(f"[WeiboClient.get] 请求uri:{uri} 重试均失败了，尝试更换账号与IP再次发起重试")
+            utils.logger.error(
+                f"[WeiboClient.get] 请求uri:{uri} 重试均失败了，尝试更换账号与IP再次发起重试"
+            )
             if config.ENABLE_IP_PROXY:
                 try:
-                    utils.logger.info(f"[WeiboClient.get] 请求uri:{uri} 尝试更换IP再次发起重试...")
-                    await self.account_with_ip_pool.mark_ip_invalid(cast(IpInfoModel, self.account_info.ip_info))
-                    proxy_ip_pool: ProxyIpPool = cast(ProxyIpPool, self.account_with_ip_pool.proxy_ip_pool)
+                    utils.logger.info(
+                        f"[WeiboClient.get] 请求uri:{uri} 尝试更换IP再次发起重试..."
+                    )
+                    await self.account_with_ip_pool.mark_ip_invalid(
+                        cast(IpInfoModel, self.account_info.ip_info)
+                    )
+                    proxy_ip_pool: ProxyIpPool = cast(
+                        ProxyIpPool, self.account_with_ip_pool.proxy_ip_pool
+                    )
                     self.account_info.ip_info = await proxy_ip_pool.get_proxy()
-                    return await self.request(method="GET", url=f"{WEIBO_API_URL}{final_uri}", **kwargs)
+                    return await self.request(
+                        method="GET", url=f"{WEIBO_API_URL}{final_uri}", **kwargs
+                    )
                 except RetryError:
                     pass
 
             utils.logger.error(
-                f"[WeiboClient.get]请求uri:{uri}，IP更换后还是失败，尝试更换账号与IP再次发起重试")
+                f"[WeiboClient.get]请求uri:{uri}，IP更换后还是失败，尝试更换账号与IP再次发起重试"
+            )
             await self.mark_account_invalid(self.account_info)
             await self.update_account_info()
-            return await self.request(method="GET", url=f"{WEIBO_API_URL}{final_uri}", **kwargs)
+            return await self.request(
+                method="GET", url=f"{WEIBO_API_URL}{final_uri}", **kwargs
+            )
 
     async def post(self, uri: str, data: Dict, **kwargs) -> Union[Response, Dict]:
         """
@@ -192,52 +232,78 @@ class WeiboClient:
         Returns:
 
         """
-        json_str = json.dumps(data, separators=(',', ':'), ensure_ascii=False)
+        json_str = json.dumps(data, separators=(",", ":"), ensure_ascii=False)
         try:
-            res = await self.request(method="POST", url=f"{WEIBO_API_URL}{uri}",
-                                     data=json_str, **kwargs)
+            res = await self.request(
+                method="POST", url=f"{WEIBO_API_URL}{uri}", data=json_str, **kwargs
+            )
             return res
         except RetryError:
-            utils.logger.error(f"[WeiboClient.post] 请求uri:{uri} 重试均失败了，尝试更换账号与IP再次发起重试")
+            utils.logger.error(
+                f"[WeiboClient.post] 请求uri:{uri} 重试均失败了，尝试更换账号与IP再次发起重试"
+            )
             if config.ENABLE_IP_PROXY:
-                utils.logger.info(f"[WeiboClient.post] 请求uri:{uri} 尝试更换IP再次发起重试...")
+                utils.logger.info(
+                    f"[WeiboClient.post] 请求uri:{uri} 尝试更换IP再次发起重试..."
+                )
                 try:
-                    await self.account_with_ip_pool.mark_ip_invalid(cast(IpInfoModel, self.account_info.ip_info))
-                    proxy_ip_pool: ProxyIpPool = cast(ProxyIpPool, self.account_with_ip_pool.proxy_ip_pool)
+                    await self.account_with_ip_pool.mark_ip_invalid(
+                        cast(IpInfoModel, self.account_info.ip_info)
+                    )
+                    proxy_ip_pool: ProxyIpPool = cast(
+                        ProxyIpPool, self.account_with_ip_pool.proxy_ip_pool
+                    )
                     self.account_info.ip_info = await proxy_ip_pool.get_proxy()
-                    return await self.request(method="POST", url=f"{WEIBO_API_URL}{uri}",
-                                              data=json_str, **kwargs)
+                    return await self.request(
+                        method="POST",
+                        url=f"{WEIBO_API_URL}{uri}",
+                        data=json_str,
+                        **kwargs,
+                    )
 
                 except RetryError:
                     pass
 
             utils.logger.error(
-                f"[WeiboClient.post]请求uri:{uri}，IP更换后还是失败，尝试更换账号与IP再次发起重试")
+                f"[WeiboClient.post]请求uri:{uri}，IP更换后还是失败，尝试更换账号与IP再次发起重试"
+            )
             await self.mark_account_invalid(self.account_info)
             await self.update_account_info()
-            return await self.request(method="POST", url=f"{WEIBO_API_URL}{uri}", data=json_str, **kwargs)
+            return await self.request(
+                method="POST", url=f"{WEIBO_API_URL}{uri}", data=json_str, **kwargs
+            )
 
     async def pong(self) -> bool:
         """get a note to check if login state is ok"""
-        utils.logger.info("[WeiboClient.pong] Begin pong weibo...")
+        utils.logger.info(
+            f"[WeiboClient.pong] Begin to check account: {self.account_info.account.account_name} login state..."
+        )
         ping_flag = False
         try:
             uri = "/api/config"
-            resp_data: Dict = cast(Dict, await self.request(method="GET", url=f"{WEIBO_API_URL}{uri}"))
-            if resp_data.get("login"):
+            async with httpx.AsyncClient(proxies=self._proxies) as client:
+                response = await client.request(
+                    method="GET",
+                    url=f"{WEIBO_API_URL}{uri}",
+                    headers=self.headers,
+                )
+            resp_data: Dict = cast(Dict, response.json())
+            print(resp_data)
+            if resp_data and resp_data.get("data", {}).get("login"):
                 ping_flag = True
             else:
-                utils.logger.error(f"[WeiboClient.pong] cookie may be invalid and again login...")
+                utils.logger.error(
+                    f"[WeiboClient.pong] cookie may be invalid and again login..."
+                )
         except Exception as e:
-            utils.logger.error(f"[WeiboClient.pong] Pong weibo failed: {e}, and try to login again...")
+            utils.logger.error(
+                f"[WeiboClient.pong] Ping xhs failed: {e},current account: {self.account_info.account.account_name} and try to login again..."
+            )
             ping_flag = False
         return ping_flag
 
     async def get_note_by_keyword(
-            self,
-            keyword: str,
-            page: int = 1,
-            search_type: SearchType = SearchType.DEFAULT
+        self, keyword: str, page: int = 1, search_type: SearchType = SearchType.DEFAULT
     ) -> Dict:
         """
         search note by keyword
@@ -255,7 +321,9 @@ class WeiboClient:
         }
         return cast(Dict, await self.get(uri, params))
 
-    async def get_note_comments(self, mid_id: str, max_id: int, max_id_type: int = 0) -> Dict:
+    async def get_note_comments(
+        self, mid_id: str, max_id: int, max_id_type: int = 0
+    ) -> Dict:
         """get notes comments
         :param mid_id: 微博ID
         :param max_id: 分页参数ID
@@ -277,8 +345,12 @@ class WeiboClient:
 
         return cast(Dict, await self.get(uri, params, headers=headers))
 
-    async def get_note_all_comments(self, note_id: str, crawl_interval: float = 1.0,
-                                    callback: Optional[Callable] = None, ):
+    async def get_note_all_comments(
+        self,
+        note_id: str,
+        crawl_interval: float = 1.0,
+        callback: Optional[Callable] = None,
+    ):
         """
         get note all comments include sub comments
         :param note_id:
@@ -303,17 +375,24 @@ class WeiboClient:
                 await callback(note_id, comment_list)
             await asyncio.sleep(crawl_interval)
             result.extend(comment_list)
-            if PER_NOTE_MAX_COMMENTS_COUNT and len(result) >= PER_NOTE_MAX_COMMENTS_COUNT:
+            if (
+                PER_NOTE_MAX_COMMENTS_COUNT
+                and len(result) >= PER_NOTE_MAX_COMMENTS_COUNT
+            ):
                 utils.logger.info(
-                    f"[WeiboClient.get_note_all_comments] The number of comments exceeds the limit: {PER_NOTE_MAX_COMMENTS_COUNT}")
+                    f"[WeiboClient.get_note_all_comments] The number of comments exceeds the limit: {PER_NOTE_MAX_COMMENTS_COUNT}"
+                )
                 break
-            sub_comment_result = await self.get_comments_all_sub_comments(note_id, comment_list, callback)
+            sub_comment_result = await self.get_comments_all_sub_comments(
+                note_id, comment_list, callback
+            )
             result.extend(sub_comment_result)
         return result
 
     @staticmethod
-    async def get_comments_all_sub_comments(note_id: str, comment_list: List[Dict],
-                                            callback: Optional[Callable] = None) -> List[Dict]:
+    async def get_comments_all_sub_comments(
+        note_id: str, comment_list: List[Dict], callback: Optional[Callable] = None
+    ) -> List[Dict]:
         """
         获取评论的所有子评论
         Args:
@@ -326,7 +405,8 @@ class WeiboClient:
         """
         if not config.ENABLE_GET_SUB_COMMENTS:
             utils.logger.info(
-                f"[WeiboClient.get_comments_all_sub_comments] Crawling sub_comment mode is not enabled")
+                f"[WeiboClient.get_comments_all_sub_comments] Crawling sub_comment mode is not enabled"
+            )
             return []
 
         res_sub_comments = []
@@ -348,17 +428,19 @@ class WeiboClient:
         response: Response = cast(Response, await self.get(uri, return_response=True))
         if response.status_code != 200:
             raise DataFetchError(f"get weibo detail err: {response.text}")
-        match = re.search(r'var \$render_data = (\[.*?\])\[0\]', response.text, re.DOTALL)
+        match = re.search(
+            r"var \$render_data = (\[.*?\])\[0\]", response.text, re.DOTALL
+        )
         if match:
             render_data_json = match.group(1)
             render_data_dict = json.loads(render_data_json)
             note_detail = render_data_dict[0].get("status")
-            note_item = {
-                "mblog": note_detail
-            }
+            note_item = {"mblog": note_detail}
             return note_item
         else:
-            utils.logger.info(f"[WeiboClient.get_note_info_by_id] 未找到$render_data的值")
+            utils.logger.info(
+                f"[WeiboClient.get_note_info_by_id] 未找到$render_data的值"
+            )
             return dict()
 
     async def get_creator_container_info(self, creator_id: str) -> Dict:
@@ -379,7 +461,7 @@ class WeiboClient:
         m_weibocn_params_dict = parse_qs(unquote(m_weibocn_params))
         return {
             "fid_container_id": m_weibocn_params_dict.get("fid", [""])[0],
-            "lfid_container_id": m_weibocn_params_dict.get("lfid", [""])[0]
+            "lfid_container_id": m_weibocn_params_dict.get("lfid", [""])[0],
         }
 
     async def get_creator_info_by_id(self, creator_id: str) -> Dict:
@@ -397,7 +479,8 @@ class WeiboClient:
             "jumpfrom": "weibocom",
             "type": "uid",
             "value": creator_id,
-            "containerid": container_info["fid_container_id"] or container_info["lfid_container_id"],
+            "containerid": container_info["fid_container_id"]
+            or container_info["lfid_container_id"],
         }
 
         user_res = await self.get(uri, params)
@@ -412,7 +495,12 @@ class WeiboClient:
         user_res.update(container_info)
         return user_res
 
-    async def get_notes_by_creator(self, creator: str, container_id: str, since_id: str = "0", ) -> Dict:
+    async def get_notes_by_creator(
+        self,
+        creator: str,
+        container_id: str,
+        since_id: str = "0",
+    ) -> Dict:
         """
         获取博主的笔记
         Args:
@@ -432,8 +520,13 @@ class WeiboClient:
         }
         return await self.get(uri, params)
 
-    async def get_all_notes_by_creator_id(self, creator_id: str, container_id: str, crawl_interval: float = 1.0,
-                                          callback: Optional[Callable] = None) -> List[Dict]:
+    async def get_all_notes_by_creator_id(
+        self,
+        creator_id: str,
+        container_id: str,
+        crawl_interval: float = 1.0,
+        callback: Optional[Callable] = None,
+    ) -> List[Dict]:
         """
         获取指定用户下的所有发过的帖子，该方法会一直查找一个用户下的所有帖子信息
         Args:
@@ -450,26 +543,33 @@ class WeiboClient:
         since_id = ""
         crawler_total_count = 0
         while notes_has_more:
-            notes_res = await self.get_notes_by_creator(creator_id, container_id, since_id)
+            notes_res = await self.get_notes_by_creator(
+                creator_id, container_id, since_id
+            )
             if not notes_res:
                 utils.logger.error(
-                    f"[WeiboClient.get_notes_by_creator] The current creator may have been banned by xhs, so they cannot access the data.")
+                    f"[WeiboClient.get_notes_by_creator] The current creator may have been banned by xhs, so they cannot access the data."
+                )
                 break
 
             since_id = notes_res.get("cardlistInfo", {}).get("since_id", "0")
             if "cards" not in notes_res:
                 utils.logger.info(
-                    f"[WeiboClient.get_all_notes_by_creator] No 'notes' key found in response: {notes_res}")
+                    f"[WeiboClient.get_all_notes_by_creator] No 'notes' key found in response: {notes_res}"
+                )
                 break
 
             notes = notes_res["cards"]
             utils.logger.info(
-                f"[WeiboClient.get_all_notes_by_creator] got user_id:{creator_id} notes len : {len(notes)}")
-            notes = [note for note  in notes if note.get("card_type") == 9]
+                f"[WeiboClient.get_all_notes_by_creator] got user_id:{creator_id} notes len : {len(notes)}"
+            )
+            notes = [note for note in notes if note.get("card_type") == 9]
             if callback:
                 await callback(notes)
             await asyncio.sleep(crawl_interval)
             result.extend(notes)
             crawler_total_count += 10
-            notes_has_more = notes_res.get("cardlistInfo", {}).get("total", 0) > crawler_total_count
+            notes_has_more = (
+                notes_res.get("cardlistInfo", {}).get("total", 0) > crawler_total_count
+            )
         return result

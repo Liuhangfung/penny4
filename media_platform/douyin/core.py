@@ -75,12 +75,6 @@ class DouYinCrawler(AbstractCrawler):
         Returns:
 
         """
-        if not await self.dy_client.pong():
-            utils.logger.error(
-                "[DouYinCrawler.start] 登录态已经失效，请重新替换Cookies尝试"
-            )
-            return
-
         if config.CRAWLER_TYPE == "search":
             # Search for notes and retrieve their comment information.
             await self.search()

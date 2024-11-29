@@ -70,12 +70,6 @@ class BilibiliCrawler(AbstractCrawler):
         Returns:
 
         """
-        if not await self.bili_client.pong():
-            utils.logger.error(
-                "[BilibiliCrawler.start] 登录态已经失效，请重新替换Cookies尝试"
-            )
-            return
-
         if config.CRAWLER_TYPE == "search":
             # Search for video and retrieve their comment information.
             await self.search()

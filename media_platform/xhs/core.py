@@ -73,13 +73,6 @@ class XiaoHongShuCrawler(AbstractCrawler):
         Returns:
 
         """
-
-        if not await self.xhs_client.pong():
-            utils.logger.error(
-                "[XiaoHongShuCrawler.start] 登录态已经失效，请确保账号池第一个账号是有效的，否则请重新替换Cookies尝试"
-            )
-            return
-
         if config.CRAWLER_TYPE == "search":
             # Search for notes and retrieve their comment information.
             await self.search()
@@ -243,7 +236,7 @@ class XiaoHongShuCrawler(AbstractCrawler):
     async def get_specified_notes(self):
         """
         Get the information and comments of the specified post
-        must be specified note_id, xsec_source, xsec_token⚠️⚠️⚠️
+        must be specified note_id, xsec_source, xsec_token
         Returns:
 
         """

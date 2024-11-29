@@ -497,7 +497,7 @@ class XiaoHongShuClient(AbstractApiClient):
                 break
             comments = comments_res["comments"]
             if callback:
-                await callback(note_id, comments)
+                await callback(note_id, comments, xsec_token)
             await asyncio.sleep(crawl_interval)
             result.extend(comments)
             if (
@@ -696,10 +696,7 @@ class XiaoHongShuClient(AbstractApiClient):
                         f"[XiaoHongShuClient.get_note_by_id_from_html] current retried times: {current_retry}"
                     )
                     await asyncio.sleep(random.random())
-                    if (
-                            config.ENABLE_IP_PROXY
-                            and 1 < current_retry <= 3
-                    ):
+                    if config.ENABLE_IP_PROXY and 1 < current_retry <= 3:
                         try:
                             ip_proxies = (
                                 self.account_with_ip_pool.proxy_ip_pool.get_proxy()

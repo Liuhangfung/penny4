@@ -515,3 +515,6 @@ alter table douyin_aweme_comment add column `like_count` varchar(255) NOT NULL D
 alter table kuaishou_video_comment add column `like_count` varchar(255) NOT NULL DEFAULT '0' COMMENT '点赞数';
 alter table weibo_note_comment add column `like_count` varchar(255) NOT NULL DEFAULT '0' COMMENT '点赞数';
 alter table xhs_note_comment add column `like_count` varchar(255) NOT NULL DEFAULT '0' COMMENT '点赞数';
+
+-- 小红书笔记评论添加笔记链接 for issue : https://github.com/MediaCrawlerPro/MediaCrawlerPro-Python/issues/116
+alter table xhs_note_comment add column `note_url` varchar(255) NOT NULL DEFAULT '' COMMENT '所属的笔记链接';

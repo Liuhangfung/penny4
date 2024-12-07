@@ -543,7 +543,7 @@ class XiaoHongShuClient(AbstractApiClient):
             note_id = comment.get("note_id")
             sub_comments = comment.get("sub_comments")
             if sub_comments and callback:
-                await callback(note_id, sub_comments)
+                await callback(note_id, sub_comments, xsec_token)
 
             sub_comment_has_more = comment.get("sub_comment_has_more")
             if not sub_comment_has_more:

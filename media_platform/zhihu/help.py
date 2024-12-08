@@ -138,15 +138,13 @@ class ZhihuExtractor:
         res = ZhihuContent()
 
         if "video" in zvideo and isinstance(zvideo.get("video"), dict):
-            res.content_id = zvideo.get("video").get("video_id") or zvideo.get("video").get("videoId")
             res.content_url = f"{zhihu_constant.ZHIHU_URL}/zvideo/{res.content_id}"
             res.created_time = zvideo.get("published_at") or zvideo.get("publishedAt")
             res.updated_time = zvideo.get("updated_at") or zvideo.get("updatedAt")
         else:
-            res.content_id = zvideo.get("zvideo_id")
             res.content_url = zvideo.get("video_url")
             res.created_time = zvideo.get("created_at")
-
+        res.content_id = zvideo.get("id")
         res.content_type = zvideo.get("type")
         res.title = extract_text_from_html(zvideo.get("title"))
         res.desc = extract_text_from_html(zvideo.get("description"))

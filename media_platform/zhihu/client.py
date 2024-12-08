@@ -338,7 +338,7 @@ class ZhiHuClient(AbstractApiClient):
         content_type: str,
         offset: str = "",
         limit: int = 10,
-        order_by: str = "sort",
+        order_by: str = "score",
     ) -> Dict:
         """
         获取内容的一级评论

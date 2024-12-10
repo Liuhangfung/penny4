@@ -700,7 +700,7 @@ class XiaoHongShuClient(AbstractApiClient):
                         try:
                             ip_proxies = (
                                 await self.account_with_ip_pool.proxy_ip_pool.get_proxy()
-                            )
+                            ).format_httpx_proxy()
                         except Exception as e:
                             utils.logger.error(
                                 f"[XiaoHongShuClient.get_note_by_id_from_html] get proxy error: {e}"

@@ -577,6 +577,12 @@ class DouYinApiClient(AbstractApiClient):
                 if aweme_post_res.get("aweme_list")
                 else []
             )
+            if not aweme_list:
+                # 如果获取到的视频列表为空，则认为该用户没有视频，直接跳出循环 还有一种可能是私密账号
+                utils.logger.info(
+                    f"[DouYinApiClient.get_all_user_aweme_posts] sec_user_id:{sec_user_id} has no video"
+                )
+                break
             utils.logger.info(
                 f"[DouYinApiClient.get_all_user_aweme_posts] got sec_user_id:{sec_user_id} video len : {len(aweme_list)}"
             )

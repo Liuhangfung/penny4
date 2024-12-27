@@ -708,3 +708,87 @@ class ZhiHuClient(AbstractApiClient):
             offset += limit
             await asyncio.sleep(crawl_interval)
         return all_contents
+
+    async def get_answers_by_question_id(
+        self,
+        question_id: str,
+        cursor: str = "",
+        session_id: str = "",
+        limit: int = 5,
+        offset: int = 0,
+        order: str = "default",
+    ) -> Dict:
+        """
+        获取问题下的所有回答
+        Args:
+            question_id: 问题ID
+            cursor: 游标
+            limit: 每页数量
+            offset: 偏移量
+            order: 排序方式(default | updated)
+            session_id: 会话ID
+
+        Returns:
+
+        """
+        uri = f"/api/v4/questions/{question_id}/feeds"
+        params = {
+            "cursor": cursor,
+            "limit": limit,
+            "offset": offset,
+            "order": order,
+            "session_id": session_id,
+            "ws_qiangzhisafe": "1",
+            "platform": "desktop",
+            "include": "data[*].is_normal,admin_closed_comment,reward_info,is_collapsed,annotation_action,annotation_detail,collapse_reason,is_sticky,collapsed_by,suggest_edit,comment_count,can_comment,content,editable_content,attachment,voteup_count,reshipment_settings,comment_permission,created_time,updated_time,review_info,relevant_info,question,excerpt,is_labeled,paid_info,paid_info_content,reaction_instruction,relationship.is_authorized,is_author,voting,is_thanked,is_nothelp;data[*].author.follower_count,vip_info,kvip_info,badge[*].topics;data[*].settings.table_of_content.enabled",
+        }
+        return await self.get(uri, params)
+
+    async def get_all_answers_by_question_id(
+        self,
+        question_id: str,
+        crawl_interval: float = 1.0,
+        max_answers: int = 0,
+        order: str = "default",
+        callback: Optional[Callable] = None,
+    ) -> List[ZhihuContent]:
+        """
+        获取问题下的所有回答
+
+        Args:
+            question_id: 问题ID
+            crawl_interval: 爬取一次笔记的延迟单位（秒）
+            max_answers: 0 表示不限制
+
+        Returns:
+
+        """
+        is_end: bool = False
+        req_params = {
+            "cursor": "",
+            "session_id": "",
+            "offset": 0,
+            "limit": 5,
+            "order": order,
+        }
+        all_answers: List[ZhihuContent] = []
+        while not is_end and (max_answers == 0 or len(all_answers) < max_answers):
+            res = await self.get_answers_by_question_id(question_id, **req_params)
+            if not res:
+                break
+            paging_info = res.get("paging", {})
+            is_end = paging_info.get("is_end", True)
+            contents = self._extractor.extract_anwser_list_from_questions_feeds(
+                res.get("data", [])
+            )
+            all_answers.extend(contents)
+            if callback:
+                await callback(contents)
+            await asyncio.sleep(crawl_interval)
+            req_params = self._extractor.extract_next_req_params_from_url(
+                paging_info, specific_params=req_params.keys()
+            )
+        utils.logger.info(
+            f"[ZhiHuClient.get_all_answers_by_question_id] question id {question_id} get {len(all_answers)} answers"
+        )
+        return all_answers

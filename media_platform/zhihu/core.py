@@ -242,13 +242,14 @@ class ZhihuCrawler(AbstractCrawler):
             await self.batch_get_content_comments(all_content_list)
 
     async def get_note_detail(
-        self, full_note_url: str, semaphore: asyncio.Semaphore
+        self, full_note_url: str, semaphore: asyncio.Semaphore, note_type: str
     ) -> Optional[ZhihuContent]:
         """
         Get note detail
         Args:
             full_note_url: str
             semaphore:
+            note_type:
 
         Returns:
 
@@ -257,8 +258,6 @@ class ZhihuCrawler(AbstractCrawler):
             utils.logger.info(
                 f"[ZhihuCrawler.get_specified_notes] Begin get specified note {full_note_url}"
             )
-            # judge note type
-            note_type: str = judge_zhihu_url(full_note_url)
             if note_type == constant.ANSWER_NAME:
                 question_id = full_note_url.split("/")[-3]
                 answer_id = full_note_url.split("/")[-1]
@@ -287,27 +286,32 @@ class ZhihuCrawler(AbstractCrawler):
         Returns:
 
         """
-        get_note_detail_task_list = []
-        for full_note_url in config.ZHIHU_SPECIFIED_ID_LIST:
-            # remove query params
-            full_note_url = full_note_url.split("?")[0]
-            crawler_task = self.get_note_detail(
-                full_note_url=full_note_url,
-                semaphore=asyncio.Semaphore(config.MAX_CONCURRENCY_NUM),
-            )
-            get_note_detail_task_list.append(crawler_task)
-
         need_get_comment_notes: List[ZhihuContent] = []
-        note_details = await asyncio.gather(*get_note_detail_task_list)
-        for index, note_detail in enumerate(note_details):
-            if not note_detail:
-                utils.logger.info(
-                    f"[ZhihuCrawler.get_specified_notes] Note {config.ZHIHU_SPECIFIED_ID_LIST[index]} not found"
-                )
-                continue
+        note_details: List[ZhihuContent] = []
+        for full_note_url in config.ZHIHU_SPECIFIED_ID_LIST:
+            full_note_url = full_note_url.split("?")[0]
+            note_type: str = judge_zhihu_url(full_note_url)
 
-            note_detail = cast(ZhihuContent, note_detail)  # only for type check
-            need_get_comment_notes.append(note_detail)
-            await zhihu_store.update_zhihu_content(note_detail)
+            # 问题下的回答列表 for issue support #135
+            if note_type == constant.QUESTION_NAME:
+                question_id = full_note_url.split("/")[-1]
+                all_answer_contents = (
+                    await self.zhihu_client.get_all_answers_by_question_id(
+                        question_id,
+                        crawl_interval=0,
+                        max_answers=config.CRAWLER_MAX_NOTES_COUNT,
+                        order="default",
+                        callback=zhihu_store.batch_update_zhihu_contents,
+                    )
+                )
+                note_details.extend(all_answer_contents)
+            else:
+                note_detail = await self.get_note_detail(
+                    full_note_url=full_note_url,
+                    semaphore=asyncio.Semaphore(config.MAX_CONCURRENCY_NUM),
+                    note_type=note_type,
+                )
+                note_details.append(note_detail)
+                await zhihu_store.update_zhihu_content(note_detail)
 
         await self.batch_get_content_comments(need_get_comment_notes)

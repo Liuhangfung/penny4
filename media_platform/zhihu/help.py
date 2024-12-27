@@ -1,12 +1,12 @@
-# 声明：本代码仅供学习和研究目的使用。使用者应遵守以下原则：  
-# 1. 不得用于任何商业用途。  
-# 2. 使用时应遵守目标平台的使用条款和robots.txt规则。  
-# 3. 不得进行大规模爬取或对平台造成运营干扰。  
-# 4. 应合理控制请求频率，避免给目标平台带来不必要的负担。   
+# 声明：本代码仅供学习和研究目的使用。使用者应遵守以下原则：
+# 1. 不得用于任何商业用途。
+# 2. 使用时应遵守目标平台的使用条款和robots.txt规则。
+# 3. 不得进行大规模爬取或对平台造成运营干扰。
+# 4. 应合理控制请求频率，避免给目标平台带来不必要的负担。
 # 5. 不得用于任何非法或不当的用途。
-#   
-# 详细许可条款请参阅项目根目录下的LICENSE文件。  
-# 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。  
+#
+# 详细许可条款请参阅项目根目录下的LICENSE文件。
+# 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。
 
 
 # -*- coding: utf-8 -*-
@@ -38,9 +38,18 @@ class ZhihuExtractor:
             return []
 
         search_result: List[Dict] = json_data.get("data", [])
-        search_result = [s_item for s_item in search_result if s_item.get("type") in ['search_result', 'zvideo']]
-        return self._extract_content_list([sr_item.get("object") for sr_item in search_result if sr_item.get("object")])
-
+        search_result = [
+            s_item
+            for s_item in search_result
+            if s_item.get("type") in ["search_result", "zvideo"]
+        ]
+        return self._extract_content_list(
+            [
+                sr_item.get("object")
+                for sr_item in search_result
+                if sr_item.get("object")
+            ]
+        )
 
     def _extract_content_list(self, content_list: List[Dict]) -> List[ZhihuContent]:
         """
@@ -81,11 +90,15 @@ class ZhihuExtractor:
         res.question_id = answer.get("question").get("id")
         res.content_url = f"{zhihu_constant.ZHIHU_URL}/question/{res.question_id}/answer/{res.content_id}"
         res.title = extract_text_from_html(answer.get("title", ""))
-        res.desc = extract_text_from_html(answer.get("description", "") or answer.get("excerpt", ""))
+        res.desc = extract_text_from_html(
+            answer.get("description", "") or answer.get("excerpt", "")
+        )
         res.created_time = answer.get("created_time") or answer.get("createdTime")
         res.updated_time = answer.get("updated_time") or answer.get("updatedTime")
         res.voteup_count = answer.get("voteup_count", 0) or answer.get("voteupCount", 0)
-        res.comment_count = answer.get("comment_count", 0) or answer.get("commentCount", 0)
+        res.comment_count = answer.get("comment_count", 0) or answer.get(
+            "commentCount", 0
+        )
 
         # extract author info
         author_info = self._extract_content_or_comment_author(answer.get("author"))
@@ -112,10 +125,22 @@ class ZhihuExtractor:
         res.content_url = f"{zhihu_constant.ZHIHU_URL}/p/{res.content_id}"
         res.title = extract_text_from_html(article.get("title"))
         res.desc = extract_text_from_html(article.get("excerpt"))
-        res.created_time = article.get("created_time", 0) or article.get("created", 0) or article.get("createdTime", 0)
-        res.updated_time = article.get("updated_time", 0) or article.get("updated", 0) or article.get("updatedTime", 0)
-        res.voteup_count = article.get("voteup_count", 0) or article.get("voteupCount", 0)
-        res.comment_count = article.get("comment_count", 0) or article.get("commentCount", 0)
+        res.created_time = (
+            article.get("created_time", 0)
+            or article.get("created", 0)
+            or article.get("createdTime", 0)
+        )
+        res.updated_time = (
+            article.get("updated_time", 0)
+            or article.get("updated", 0)
+            or article.get("updatedTime", 0)
+        )
+        res.voteup_count = article.get("voteup_count", 0) or article.get(
+            "voteupCount", 0
+        )
+        res.comment_count = article.get("comment_count", 0) or article.get(
+            "commentCount", 0
+        )
 
         # extract author info
         author_info = self._extract_content_or_comment_author(article.get("author"))
@@ -189,7 +214,9 @@ class ZhihuExtractor:
         res.user_link = f"{zhihu_constant.ZHIHU_URL}/people/{res.url_token}"
         return res
 
-    def extract_comments(self, page_content: ZhihuContent, comments: List[Dict]) -> List[ZhihuComment]:
+    def extract_comments(
+        self, page_content: ZhihuContent, comments: List[Dict]
+    ) -> List[ZhihuComment]:
         """
         extract zhihu comments
         Args:
@@ -208,7 +235,9 @@ class ZhihuExtractor:
             res.append(self._extract_comment(page_content, comment))
         return res
 
-    def _extract_comment(self, page_content: ZhihuContent, comment: Dict) -> ZhihuComment:
+    def _extract_comment(
+        self, page_content: ZhihuContent, comment: Dict
+    ) -> ZhihuComment:
         """
         extract zhihu comment
         Args:
@@ -223,10 +252,14 @@ class ZhihuExtractor:
         res.parent_comment_id = comment.get("reply_comment_id")
         res.content = extract_text_from_html(comment.get("content"))
         res.publish_time = comment.get("created_time")
-        res.ip_location = self._extract_comment_ip_location(comment.get("comment_tag", []))
+        res.ip_location = self._extract_comment_ip_location(
+            comment.get("comment_tag", [])
+        )
         res.sub_comment_count = comment.get("child_comment_count")
         res.like_count = comment.get("like_count") if comment.get("like_count") else 0
-        res.dislike_count = comment.get("dislike_count") if comment.get("dislike_count") else 0
+        res.dislike_count = (
+            comment.get("dislike_count") if comment.get("dislike_count") else 0
+        )
         res.content_id = page_content.content_id
         res.content_type = page_content.content_type
 
@@ -261,6 +294,7 @@ class ZhihuExtractor:
     def extract_offset(paging_info: Dict) -> str:
         """
         extract offset
+
         Args:
             paging_info:
 
@@ -274,8 +308,35 @@ class ZhihuExtractor:
 
         parsed_url = urlparse(next_url)
         query_params = parse_qs(parsed_url.query)
-        offset = query_params.get('offset', [""])[0]
+        offset = query_params.get("offset", [""])[0]
         return offset
+
+    @staticmethod
+    def extract_next_req_params_from_url(
+        paging_info: Dict, specific_params: List[str] = []
+    ) -> Dict:
+        """
+        extract next request params from url
+
+        Args:
+            paging_info: 分页信息
+            specific_params: 需要提取的参数列表
+
+        Returns:
+
+        """
+        # https://www.zhihu.com/api/v4/questions/659910649/feeds?cursor=f46f77d99a5694b20e64e73b9587443&limit=5&offset=1........
+        next_url = paging_info.get("next")
+        if not next_url:
+            return {}
+
+        res_params = {}
+        parsed_url = urlparse(next_url)
+        query_params = parse_qs(parsed_url.query)
+        for key, value in query_params.items():
+            if key in specific_params:
+                res_params[key] = value[0]
+        return res_params
 
     @staticmethod
     def _foramt_gender_text(gender: int) -> str:
@@ -294,8 +355,9 @@ class ZhihuExtractor:
         else:
             return "未知"
 
-
-    def extract_creator(self, user_url_token: str, html_content: str) -> Optional[ZhihuCreator]:
+    def extract_creator(
+        self, user_url_token: str, html_content: str
+    ) -> Optional[ZhihuCreator]:
         """
         extract zhihu creator
         Args:
@@ -308,12 +370,21 @@ class ZhihuExtractor:
         if not html_content:
             return None
 
-        js_init_data = Selector(text=html_content).xpath("//script[@id='js-initialData']/text()").get(default="").strip()
+        js_init_data = (
+            Selector(text=html_content)
+            .xpath("//script[@id='js-initialData']/text()")
+            .get(default="")
+            .strip()
+        )
         if not js_init_data:
             return None
 
         js_init_data_dict: Dict = json.loads(js_init_data)
-        users_info: Dict = js_init_data_dict.get("initialState", {}).get("entities", {}).get("users", {})
+        users_info: Dict = (
+            js_init_data_dict.get("initialState", {})
+            .get("entities", {})
+            .get("users", {})
+        )
         if not users_info:
             return None
 
@@ -339,8 +410,9 @@ class ZhihuExtractor:
         res.get_voteup_count = creator_info.get("voteupCount")
         return res
 
-
-    def extract_content_list_from_creator(self, anwser_list: List[Dict]) -> List[ZhihuContent]:
+    def extract_content_list_from_creator(
+        self, anwser_list: List[Dict]
+    ) -> List[ZhihuContent]:
         """
         extract content list from creator
         Args:
@@ -354,8 +426,9 @@ class ZhihuExtractor:
 
         return self._extract_content_list(anwser_list)
 
-
-    def extract_answer_content_from_html(self, html_content: str) -> Optional[ZhihuContent]:
+    def extract_answer_content_from_html(
+        self, html_content: str
+    ) -> Optional[ZhihuContent]:
         """
         extract zhihu answer content from html
         Args:
@@ -364,17 +437,27 @@ class ZhihuExtractor:
         Returns:
 
         """
-        js_init_data: str = Selector(text=html_content).xpath("//script[@id='js-initialData']/text()").get(default="")
+        js_init_data: str = (
+            Selector(text=html_content)
+            .xpath("//script[@id='js-initialData']/text()")
+            .get(default="")
+        )
         if not js_init_data:
             return None
         json_data: Dict = json.loads(js_init_data)
-        answer_info: Dict = json_data.get("initialState", {}).get("entities", {}).get("answers", {})
+        answer_info: Dict = (
+            json_data.get("initialState", {}).get("entities", {}).get("answers", {})
+        )
         if not answer_info:
             return None
 
-        return self._extract_answer_content(answer_info.get(list(answer_info.keys())[0]))
+        return self._extract_answer_content(
+            answer_info.get(list(answer_info.keys())[0])
+        )
 
-    def extract_article_content_from_html(self, html_content: str) -> Optional[ZhihuContent]:
+    def extract_article_content_from_html(
+        self, html_content: str
+    ) -> Optional[ZhihuContent]:
         """
         extract zhihu article content from html
         Args:
@@ -383,17 +466,54 @@ class ZhihuExtractor:
         Returns:
 
         """
-        js_init_data: str = Selector(text=html_content).xpath("//script[@id='js-initialData']/text()").get(default="")
+        js_init_data: str = (
+            Selector(text=html_content)
+            .xpath("//script[@id='js-initialData']/text()")
+            .get(default="")
+        )
         if not js_init_data:
             return None
         json_data: Dict = json.loads(js_init_data)
-        article_info: Dict = json_data.get("initialState", {}).get("entities", {}).get("articles", {})
+        article_info: Dict = (
+            json_data.get("initialState", {}).get("entities", {}).get("articles", {})
+        )
         if not article_info:
             return None
 
-        return self._extract_article_content(article_info.get(list(article_info.keys())[0]))
+        return self._extract_article_content(
+            article_info.get(list(article_info.keys())[0])
+        )
 
-    def extract_zvideo_content_from_html(self, html_content: str) -> Optional[ZhihuContent]:
+    def extract_anwser_list_from_questions_feeds(
+        self, questions_feeds: List[Dict]
+    ) -> List[ZhihuContent]:
+        """
+        从问题下的feed中提取回答列表
+
+        Args:
+            questions_feeds (List[Dict]): 问题下的feed列表
+
+        Returns:
+            List[ZhihuContent]: 回答列表
+
+        Yields:
+            Iterator[List[ZhihuContent]]: 回答列表
+        """
+        if not questions_feeds:
+            return []
+
+        contents: List[ZhihuContent] = []
+        for feed in questions_feeds:
+            if feed.get("target_type") != zhihu_constant.ANSWER_NAME:
+                continue
+            content = self._extract_answer_content(feed.get("target"))
+            if content:
+                contents.append(content)
+        return contents
+
+    def extract_zvideo_content_from_html(
+        self, html_content: str
+    ) -> Optional[ZhihuContent]:
         """
         extract zhihu zvideo content from html
         Args:
@@ -402,12 +522,20 @@ class ZhihuExtractor:
         Returns:
 
         """
-        js_init_data: str = Selector(text=html_content).xpath("//script[@id='js-initialData']/text()").get(default="")
+        js_init_data: str = (
+            Selector(text=html_content)
+            .xpath("//script[@id='js-initialData']/text()")
+            .get(default="")
+        )
         if not js_init_data:
             return None
         json_data: Dict = json.loads(js_init_data)
-        zvideo_info: Dict = json_data.get("initialState", {}).get("entities", {}).get("zvideos", {})
-        users: Dict = json_data.get("initialState", {}).get("entities", {}).get("users", {})
+        zvideo_info: Dict = (
+            json_data.get("initialState", {}).get("entities", {}).get("zvideos", {})
+        )
+        users: Dict = (
+            json_data.get("initialState", {}).get("entities", {}).get("users", {})
+        )
         if not zvideo_info:
             return None
 
@@ -421,6 +549,7 @@ class ZhihuExtractor:
 
         return self._extract_zvideo_content(video_detail_info)
 
+
 def judge_zhihu_url(note_detail_url: str) -> str:
     """
     judge zhihu url type
@@ -429,6 +558,7 @@ def judge_zhihu_url(note_detail_url: str) -> str:
             eg1: https://www.zhihu.com/question/123456789/answer/123456789 # answer
             eg2: https://www.zhihu.com/p/123456789 # article
             eg3: https://www.zhihu.com/zvideo/123456789 # zvideo
+            eg4: https://www.zhihu.com/question/659910649 # question
 
     Returns:
 
@@ -439,5 +569,7 @@ def judge_zhihu_url(note_detail_url: str) -> str:
         return zhihu_constant.ARTICLE_NAME
     elif "/zvideo/" in note_detail_url:
         return zhihu_constant.VIDEO_NAME
+    elif "/question/" in note_detail_url:
+        return zhihu_constant.QUESTION_NAME
     else:
         return ""

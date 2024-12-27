@@ -1,12 +1,12 @@
-# 声明：本代码仅供学习和研究目的使用。使用者应遵守以下原则：  
-# 1. 不得用于任何商业用途。  
-# 2. 使用时应遵守目标平台的使用条款和robots.txt规则。  
-# 3. 不得进行大规模爬取或对平台造成运营干扰。  
-# 4. 应合理控制请求频率，避免给目标平台带来不必要的负担。   
+# 声明：本代码仅供学习和研究目的使用。使用者应遵守以下原则：
+# 1. 不得用于任何商业用途。
+# 2. 使用时应遵守目标平台的使用条款和robots.txt规则。
+# 3. 不得进行大规模爬取或对平台造成运营干扰。
+# 4. 应合理控制请求频率，避免给目标平台带来不必要的负担。
 # 5. 不得用于任何非法或不当的用途。
-#   
-# 详细许可条款请参阅项目根目录下的LICENSE文件。  
-# 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。  
+#
+# 详细许可条款请参阅项目根目录下的LICENSE文件。
+# 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。
 
 
 # 基础配置
@@ -15,7 +15,7 @@ from typing import List
 
 from constant import EXCEL_ACCOUNT_SAVE
 
-PLATFORM = "wb"
+PLATFORM = "zhihu"
 KEYWORDS = "python,golang"
 
 # 具体值参见media_platform.xxx.field下的枚举值，暂时只支持小红书
@@ -23,7 +23,9 @@ SORT_TYPE = "popularity_descending"
 
 # 具体值参见media_platform.xxx.field下的枚举值，暂时只支持抖音
 PUBLISH_TIME_TYPE = 0
-CRAWLER_TYPE = "creator"  # 爬取类型，search(关键词搜索) | detail(帖子详情)| creator(创作者主页数据)
+CRAWLER_TYPE = (
+    "detail"  # 爬取类型，search(关键词搜索) | detail(帖子详情)| creator(创作者主页数据)
+)
 
 # 数据保存类型选项配置,支持三种类型：csv、db、json
 SAVE_DATA_OPTION = "db"  # csv or db or json
@@ -83,9 +85,7 @@ WEIBO_CREATOR_ID_LIST = [
 ]
 
 # 指定贴吧需要爬取的帖子列表
-TIEBA_SPECIFIED_ID_LIST: List[str] = [
-
-]
+TIEBA_SPECIFIED_ID_LIST: List[str] = []
 
 # 指定贴吧名称列表，爬取该贴吧下的帖子
 TIEBA_NAME_LIST: List[str] = [
@@ -115,7 +115,7 @@ BILI_SPECIFIED_ID_LIST = [
 # 指定抖音需要爬取的ID列表
 DY_SPECIFIED_ID_LIST = [
     "7280854932641664319",
-    "7202432992642387233"
+    "7202432992642387233",
     # ........................
 ]
 
@@ -127,10 +127,7 @@ DY_CREATOR_ID_LIST = [
 
 
 # 指定快手平台需要爬取的ID列表
-KS_SPECIFIED_ID_LIST = [
-    "3xf8enb8dbj6uig",
-    "3x6zz972bchmvqe"
-]
+KS_SPECIFIED_ID_LIST = ["3xf8enb8dbj6uig", "3x6zz972bchmvqe"]
 
 # 指定快手创作者ID列表
 KS_CREATOR_ID_LIST = [
@@ -145,9 +142,11 @@ ZHIHU_CREATOR_URL_LIST = [
     # ........................
 ]
 
-# 指定知乎需要爬取的帖子ID列表
+# 指定知乎需要爬取的帖子ID列表（仅支持下面这四种url链接的爬取）
 ZHIHU_SPECIFIED_ID_LIST = [
-    "https://www.zhihu.com/question/826896610/answer/4885821440", # 回答
-    "https://zhuanlan.zhihu.com/p/673461588", # 文章
-    "https://www.zhihu.com/zvideo/1539542068422144000" # 视频
+    "https://www.zhihu.com/question/826896610/answer/4885821440",  # 回答
+    "https://zhuanlan.zhihu.com/p/673461588",  # 文章
+    "https://www.zhihu.com/zvideo/1539542068422144000",  # 视频
+    # 爬取知乎指定问题下的答案列表，最大数量也由 CRAWLER_MAX_NOTES_COUNT 控制
+    "https://www.zhihu.com/question/659910649",
 ]

@@ -541,6 +541,7 @@ class BaiduTieBaClient(AbstractApiClient):
             notes = await asyncio.gather(*note_detail_task)
             if callback:
                 await callback(notes)
+            result.extend(notes)
 
         notes_has_more = 1
         page_number = 1

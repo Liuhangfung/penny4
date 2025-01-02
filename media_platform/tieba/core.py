@@ -301,9 +301,6 @@ class TieBaCrawler(AbstractCrawler):
                 utils.logger.info(
                     f"[TieBaCrawler.get_creators_and_notes] creator info: {creator_info}"
                 )
-                if not creator_info:
-                    raise Exception("Get creator info error")
-
                 await tieba_store.save_creator(user_info=creator_info)
 
                 # Get all note information of the creator

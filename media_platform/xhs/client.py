@@ -19,7 +19,8 @@ from urllib.parse import urlencode
 
 import httpx
 from httpx import Response
-from tenacity import RetryError, retry, stop_after_attempt, wait_fixed, wait_random
+from tenacity import (RetryError, retry, stop_after_attempt, wait_fixed,
+                      wait_random)
 
 import config
 from base.base_crawler import AbstractApiClient
@@ -30,14 +31,8 @@ from pkg.account_pool.pool import AccountWithIpPoolManager
 from pkg.rpc.sign_srv_client import SignServerClient, XhsSignRequest
 from pkg.tools import utils
 
-from .exception import (
-    AccessFrequencyError,
-    DataFetchError,
-    ErrorEnum,
-    IPBlockError,
-    NeedVerifyError,
-    SignError,
-)
+from .exception import (AccessFrequencyError, DataFetchError, ErrorEnum,
+                        IPBlockError, NeedVerifyError, SignError)
 from .extractor import XiaoHongShuExtractor
 from .field import SearchNoteType, SearchSortType
 from .help import get_search_id

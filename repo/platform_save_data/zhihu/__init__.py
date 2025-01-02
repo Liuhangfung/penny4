@@ -17,10 +17,7 @@ from base.base_crawler import AbstractStore
 from model.m_zhihu import ZhihuComment, ZhihuContent, ZhihuCreator
 from pkg.tools import utils
 from repo.platform_save_data.zhihu.zhihu_store_impl import (
-    ZhihuCsvStoreImplement,
-    ZhihuDbStoreImplement,
-    ZhihuJsonStoreImplement,
-)
+    ZhihuCsvStoreImplement, ZhihuDbStoreImplement, ZhihuJsonStoreImplement)
 from var import source_keyword_var
 
 

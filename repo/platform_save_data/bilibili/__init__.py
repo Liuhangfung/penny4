@@ -1,12 +1,12 @@
-# 声明：本代码仅供学习和研究目的使用。使用者应遵守以下原则：  
-# 1. 不得用于任何商业用途。  
-# 2. 使用时应遵守目标平台的使用条款和robots.txt规则。  
-# 3. 不得进行大规模爬取或对平台造成运营干扰。  
-# 4. 应合理控制请求频率，避免给目标平台带来不必要的负担。   
+# 声明：本代码仅供学习和研究目的使用。使用者应遵守以下原则：
+# 1. 不得用于任何商业用途。
+# 2. 使用时应遵守目标平台的使用条款和robots.txt规则。
+# 3. 不得进行大规模爬取或对平台造成运营干扰。
+# 4. 应合理控制请求频率，避免给目标平台带来不必要的负担。
 # 5. 不得用于任何非法或不当的用途。
-#   
-# 详细许可条款请参阅项目根目录下的LICENSE文件。  
-# 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。  
+#
+# 详细许可条款请参阅项目根目录下的LICENSE文件。
+# 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。
 
 
 # -*- coding: utf-8 -*-
@@ -17,6 +17,7 @@
 from typing import List
 
 import config
+from model.m_bilibili import CreatorQueryResponse
 from var import source_keyword_var
 
 from .bilibili_store_impl import *
@@ -26,7 +27,7 @@ class BiliStoreFactory:
     STORES = {
         "csv": BiliCsvStoreImplement,
         "db": BiliDbStoreImplement,
-        "json": BiliJsonStoreImplement
+        "json": BiliJsonStoreImplement,
     }
 
     @staticmethod
@@ -34,8 +35,19 @@ class BiliStoreFactory:
         store_class = BiliStoreFactory.STORES.get(config.SAVE_DATA_OPTION)
         if not store_class:
             raise ValueError(
-                "[BiliStoreFactory.create_store] Invalid save option only supported csv or db or json ...")
+                "[BiliStoreFactory.create_store] Invalid save option only supported csv or db or json ..."
+            )
         return store_class()
+
+
+async def update_bilibili_creator(creator_info: CreatorQueryResponse):
+    utils.logger.info(
+        f"[store.bilibili.update_bilibili_creator] bilibili creator info: {creator_info}"
+    )
+
+    save_data = creator_info.model_dump()
+    save_data["last_modify_ts"] = utils.get_current_timestamp()
+    await BiliStoreFactory.create_store().store_creator(save_data)
 
 
 async def update_bilibili_video(video_item: Dict):
@@ -62,7 +74,8 @@ async def update_bilibili_video(video_item: Dict):
         "source_keyword": source_keyword_var.get(),
     }
     utils.logger.info(
-        f"[store.bilibili.update_bilibili_video] bilibili video id:{video_id}, title:{save_content_item.get('title')}")
+        f"[store.bilibili.update_bilibili_video] bilibili video id:{video_id}, title:{save_content_item.get('title')}"
+    )
     await BiliStoreFactory.create_store().store_content(content_item=save_content_item)
 
 
@@ -80,7 +93,8 @@ async def update_up_info(video_item: Dict):
         "is_official": video_item_card.get("official_verify").get("type"),
     }
     utils.logger.info(
-        f"[store.bilibili.update_up_info] bilibili user_id:{video_item_card.get('mid')}")
+        f"[store.bilibili.update_up_info] bilibili user_id:{video_item_card.get('mid')}"
+    )
     await BiliStoreFactory.create_store().store_creator(creator=saver_up_info)
 
 
@@ -110,5 +124,6 @@ async def update_bilibili_video_comment(video_id: str, comment_item: Dict):
         "like_count": comment_item.get("like") if comment_item.get("like") else 0,
     }
     utils.logger.info(
-        f"[store.bilibili.update_bilibili_video_comment] Bilibili video comment: {comment_id}, content: {save_comment_item.get('content')}")
+        f"[store.bilibili.update_bilibili_video_comment] Bilibili video comment: {comment_id}, content: {save_comment_item.get('content')}"
+    )
     await BiliStoreFactory.create_store().store_comment(comment_item=save_comment_item)

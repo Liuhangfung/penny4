@@ -26,14 +26,19 @@ from tenacity import RetryError, retry, stop_after_attempt, wait_fixed
 import config
 from base.base_crawler import AbstractApiClient
 from config import PER_NOTE_MAX_COMMENTS_COUNT
-from constant.bilibili import BILI_API_URL, BILI_INDEX_URL
+from constant.bilibili import BILI_API_URL, BILI_INDEX_URL, BILI_SPACE_URL
+from media_platform.bilibili.help import BiliExtractor
+from model.m_bilibili import CreatorQueryResponse
 from pkg.account_pool import AccountWithIpModel
 from pkg.account_pool.pool import AccountWithIpPoolManager
+from pkg.cache.cache_factory import CacheFactory
 from pkg.rpc.sign_srv_client import BilibliSignRequest, SignServerClient
 from pkg.tools import utils
 
 from .exception import DataFetchError
 from .field import CommentOrderType, SearchOrderType
+
+memory_cache = CacheFactory().create_cache("memory")
 
 
 class BilibiliClient(AbstractApiClient):
@@ -55,6 +60,8 @@ class BilibiliClient(AbstractApiClient):
         self._sign_client = SignServerClient()
         self.account_with_ip_pool = account_with_ip_pool
         self.account_info: Optional[AccountWithIpModel] = None
+        self._extractor = BiliExtractor()
+        self._w_webid = ""
 
     @property
     def headers(self):
@@ -296,6 +303,32 @@ class BilibiliClient(AbstractApiClient):
             ping_flag = False
         return ping_flag
 
+    @retry(stop=stop_after_attempt(5), wait=wait_fixed(1))
+    async def get_w_webid(self, up_id: str) -> str:
+        """
+        获取w_webid
+
+        Args:
+            up_id (str): UP主ID
+
+        Returns:
+            str: w_webid
+        """
+        cache_key = f"w_webid_key"
+        ttl = 3600 * 12
+        if memory_cache.get(cache_key):
+            return memory_cache.get(cache_key)
+
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{BILI_SPACE_URL}/{up_id}/dynamic", headers=self.headers
+            )
+            w_webid = self._extractor.extract_w_webid(response.text)
+            memory_cache.set(cache_key, w_webid, ttl)
+            if not w_webid:
+                raise DataFetchError("获取w_webid失败")
+        return w_webid
+
     async def search_video_by_keyword(
         self,
         keyword: str,
@@ -501,6 +534,75 @@ class BilibiliClient(AbstractApiClient):
                 page_num += 1
 
         return result
+
+    async def get_up_info(self, up_id: str) -> Dict:
+        """
+        获取UP主信息
+
+        Args:
+            up_id: UP主ID
+
+        Returns:
+
+        """
+        params = {
+            "mid": up_id,
+            "token": "",
+            "platform": "web",
+            "web_location": "1550101",
+            "w_webid": self._w_webid,
+            # 下面这个几个是浏览器指纹信息
+            "dm_img_list": "[]",
+            "dm_img_str": "V2ViR0wgMS4wIChPcGVuR0wgRVMgMi4wIENocm9taXVtKQ",
+            "dm_cover_img_str": "QU5HTEUgKEFwcGxlLCBBTkdMRSBNZXRhbCBSZW5kZXJlcjogQXBwbGUgTTEsIFVuc3BlY2lmaWVkIFZlcnNpb24pR29vZ2xlIEluYy4gKEFwcGxlKQ",
+            "dm_img_inter": '{"ds":[],"wh":[4437,2834,85],"of":[321,642,321]}',
+        }
+        return await self.get("/x/space/wbi/acc/info", params)
+
+    async def get_relation_state(self, up_id: str) -> Dict:
+        """
+        获取UP主关系状态
+
+        Args:
+            up_id: UP主ID
+
+        Returns:
+
+        """
+        params = {"vmid": up_id, "web_location": 333.999}
+        return await self.get("/x/relation/stat", params)
+
+    async def get_space_navnum(self, up_id: str) -> Dict:
+        """
+        获取UP主空间导航栏数据
+
+        Args:
+            up_id: UP主ID
+
+        Returns:
+
+        """
+        params = {"mid": up_id, "platform": "web", "web_location": 333.999}
+        return await self.get("/x/space/navnum", params)
+
+    async def get_creator_info(self, creator_id: str) -> Optional[CreatorQueryResponse]:
+        """
+        Get creator info
+
+        Args:
+            creator_id (str): 创作者ID
+
+        Returns:
+            CreatorQueryResponse: 创作者信息
+        """
+        up_info, relation_state, space_navnum = await asyncio.gather(
+            self.get_up_info(creator_id),
+            self.get_relation_state(creator_id),
+            self.get_space_navnum(creator_id),
+        )
+        return self._extractor.extract_creator_info(
+            up_info, relation_state, space_navnum
+        )
 
     async def get_creator_videos(
         self,

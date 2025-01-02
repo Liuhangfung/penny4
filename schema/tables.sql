@@ -51,15 +51,15 @@ CREATE TABLE `bilibili_up_info`
     `user_id`        varchar(64)  DEFAULT NULL COMMENT '用户ID',
     `nickname`       varchar(64)  DEFAULT NULL COMMENT '用户昵称',
     `avatar`         varchar(255) DEFAULT NULL COMMENT '用户头像地址',
+    `follower_count` bigint       DEFAULT NULL COMMENT '粉丝数',
+    `following_count` bigint       DEFAULT NULL COMMENT '关注数',
+    `content_count`  bigint       DEFAULT NULL COMMENT '作品数',
+    `description`    longtext COMMENT '用户描述',        
     `add_ts`         bigint NOT NULL COMMENT '记录添加时间戳',
     `last_modify_ts` bigint NOT NULL COMMENT '记录最后修改时间戳',
-    `total_fans`     bigint       DEFAULT NULL COMMENT '粉丝数',
-    `total_liked`    bigint       DEFAULT NULL COMMENT '总获赞数',
-    `user_rank`      int          DEFAULT NULL COMMENT '用户等级',
-    `is_official`    int          DEFAULT NULL COMMENT '是否官号',
     PRIMARY KEY (`id`),
     KEY              `idx_bilibili_vi_user_123456` (`user_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='B 站UP主信息';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='B站UP主信息';
 
 
 DROP TABLE IF EXISTS `douyin_aweme`;

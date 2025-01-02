@@ -217,7 +217,14 @@ class BilibiliCrawler(AbstractCrawler):
         Returns:
 
         """
+
         for creator_id in config.BILI_CREATOR_ID_LIST:
+            await self.bili_client.get_w_webid(creator_id)
+            creator_info = await self.bili_client.get_creator_info(creator_id)
+            utils.logger.info(
+                f"[BilibiliCrawler.get_creator_videos] creator_info: {creator_info}"
+            )
+            await bilibili_store.update_bilibili_creator(creator_info)
             utils.logger.info(
                 f"[BilibiliCrawler.get_creator_videos] begin get creator_id: {creator_id} videos ..."
             )

@@ -472,7 +472,7 @@ class BaiduTieBaClient(AbstractApiClient):
         response = await self.get(uri, return_response=True)
         return self._page_extractor.extract_tieba_note_list(response.text)
 
-    async def get_creator_info_by_url(self, creator_url: str) -> TiebaCreator:
+    async def get_creator_info_by_url(self, creator_url: str) -> str:
         """
         根据创作者ID获取创作者信息
         Args:
@@ -484,7 +484,7 @@ class BaiduTieBaClient(AbstractApiClient):
         creator_res = await self.request(
             method="GET", url=creator_url, return_response=True
         )
-        return self._page_extractor.extract_creator_info(creator_res.text)
+        return creator_res.text
 
     async def get_notes_by_creator(self, user_name: str, page_number: int) -> Dict:
         """
@@ -500,7 +500,7 @@ class BaiduTieBaClient(AbstractApiClient):
         params = {
             "un": user_name,
             "pn": page_number,
-            "id": "utf-8",
+            "ie": "utf-8",
             "_": utils.get_current_timestamp(),
         }
         return await self.get(uri, params=params)
@@ -511,6 +511,7 @@ class BaiduTieBaClient(AbstractApiClient):
         crawl_interval: float = 1.0,
         callback: Optional[Callable] = None,
         max_note_count: int = 0,
+        creator_page_html_content: str = None,
     ) -> List[TiebaNote]:
         """
         根据创作者用户名获取创作者所有帖子
@@ -519,11 +520,28 @@ class BaiduTieBaClient(AbstractApiClient):
             crawl_interval: 爬取一次笔记的延迟单位（秒）
             callback: 一次笔记爬取结束后的回调函数，是一个awaitable类型的函数
             max_note_count: 帖子最大获取数量，如果为 0则获取所有
-
+            creator_page_html_content: 创作者主页的HTML内容
         Returns:
 
         """
-        result = []
+        # 百度贴吧比较特殊一些，前10个帖子是直接展示在主页上的，要单独处理，通过API获取不到
+        result: List[TiebaNote] = []
+        if creator_page_html_content:
+            thread_id_list = (
+                self._page_extractor.extract_tieba_thread_id_list_from_creator_page(
+                    creator_page_html_content
+                )
+            )
+            utils.logger.info(
+                f"[BaiduTieBaClient.get_all_notes_by_creator] got user_name:{user_name} thread_id_list len : {len(thread_id_list)}"
+            )
+            note_detail_task = [
+                self.get_note_by_id(thread_id) for thread_id in thread_id_list
+            ]
+            notes = await asyncio.gather(*note_detail_task)
+            if callback:
+                await callback(notes)
+
         notes_has_more = 1
         page_number = 1
         page_per_count = 20
@@ -538,6 +556,8 @@ class BaiduTieBaClient(AbstractApiClient):
                 )
                 break
             notes_data = notes_res.get("data")
+            if not notes_data:
+                break
             notes_has_more = notes_data.get("has_more")
             notes = notes_data["thread_list"]
             utils.logger.info(

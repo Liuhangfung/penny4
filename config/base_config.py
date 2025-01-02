@@ -15,7 +15,7 @@ from typing import List
 
 from constant import EXCEL_ACCOUNT_SAVE
 
-PLATFORM = "zhihu"
+PLATFORM = "xhs"
 KEYWORDS = "python,golang"
 
 # 具体值参见media_platform.xxx.field下的枚举值，暂时只支持小红书
@@ -24,7 +24,7 @@ SORT_TYPE = "popularity_descending"
 # 具体值参见media_platform.xxx.field下的枚举值，暂时只支持抖音
 PUBLISH_TIME_TYPE = 0
 CRAWLER_TYPE = (
-    "detail"  # 爬取类型，search(关键词搜索) | detail(帖子详情)| creator(创作者主页数据)
+    "search"  # 爬取类型，search(关键词搜索) | detail(帖子详情)| creator(创作者主页数据)
 )
 
 # 数据保存类型选项配置,支持三种类型：csv、db、json
@@ -94,6 +94,7 @@ TIEBA_NAME_LIST: List[str] = [
 
 TIEBA_CREATOR_URL_LIST = [
     "https://tieba.baidu.com/home/main/?id=tb.1.7f139e2e.6CyEwxu3VJruH_-QqpCi6g&fr=frs",
+    # "https://tieba.baidu.com/home/main?id=tb.1.b9cd9508.4BEzoO0ZJbCkecLh-M4fKQ&fr=index"  # 主页帖子没有加载更多的case
     # ........................
 ]
 

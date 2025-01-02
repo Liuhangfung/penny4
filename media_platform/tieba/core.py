@@ -26,12 +26,14 @@ from var import crawler_type_var, source_keyword_var
 
 from .client import BaiduTieBaClient
 from .field import SearchNoteType, SearchSortType
+from .help import TieBaExtractor
 
 
 class TieBaCrawler(AbstractCrawler):
 
     def __init__(self) -> None:
         self.tieba_client = BaiduTieBaClient()
+        self.extractor = TieBaExtractor()
 
     async def async_initialize(self) -> None:
         """
@@ -73,9 +75,8 @@ class TieBaCrawler(AbstractCrawler):
         elif config.CRAWLER_TYPE == "detail":
             # Get the information and comments of the specified post
             await self.get_specified_notes()
-
         else:
-            pass
+            await self.get_creators_and_notes()
 
         utils.logger.info("[TieBaCrawler.start] Tieba Crawler finished ...")
 
@@ -290,8 +291,11 @@ class TieBaCrawler(AbstractCrawler):
             "[TieBaCrawler.get_creators_and_notes] Begin get weibo creators"
         )
         for creator_url in config.TIEBA_CREATOR_URL_LIST:
-            creator_info: TiebaCreator = (
-                await self.tieba_client.get_creator_info_by_url(creator_url=creator_url)
+            creator_page_html_content = await self.tieba_client.get_creator_info_by_url(
+                creator_url=creator_url
+            )
+            creator_info: TiebaCreator = self.extractor.extract_creator_info(
+                creator_page_html_content
             )
             if creator_info:
                 utils.logger.info(
@@ -309,6 +313,7 @@ class TieBaCrawler(AbstractCrawler):
                         crawl_interval=0,
                         callback=tieba_store.batch_update_tieba_notes,
                         max_note_count=config.CRAWLER_MAX_NOTES_COUNT,
+                        creator_page_html_content=creator_page_html_content,
                     )
                 )
 

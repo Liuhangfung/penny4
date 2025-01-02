@@ -218,6 +218,9 @@ class BilibiliCrawler(AbstractCrawler):
 
         """
         for creator_id in config.BILI_CREATOR_ID_LIST:
+            utils.logger.info(
+                f"[BilibiliCrawler.get_creator_videos] begin get creator_id: {creator_id} videos ..."
+            )
             creator_video_list = await self.bili_client.get_all_videos_by_creator(
                 creator_id
             )

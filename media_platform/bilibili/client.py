@@ -548,8 +548,14 @@ class BilibiliClient(AbstractApiClient):
         page_size = 30
         has_more = True
         while has_more:
+            utils.logger.info(
+                f"[BilibiliClient.get_all_videos_by_creator] begin get creator_id: {creator_id} videos, page_num: {page_num} ..."
+            )
             videos_res = await self.get_creator_videos(
                 creator_id, page_num, page_size, order_mode
+            )
+            utils.logger.info(
+                f"[BilibiliClient.get_all_videos_by_creator] get creator_id: {creator_id} videos, page_num: {page_num} success, count: {len(videos_res.get('list', {}).get('vlist', []))} ..."
             )
             video_list = videos_res.get("list", {}).get("vlist", [])
             result.extend(video_list)

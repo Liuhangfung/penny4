@@ -22,6 +22,10 @@ from pkg.account_pool.pool import AccountWithIpPoolManager
 from pkg.proxy.proxy_ip_pool import ProxyIpPool, create_ip_pool
 from pkg.tools import utils
 from repo.platform_save_data import douyin as douyin_store
+from repo.platform_save_data.douyin.douyin_store_sql import (
+    get_all_creators_list,
+    get_aweme_list_by_creator_id,
+)
 from var import crawler_type_var, source_keyword_var
 
 from .client import DouYinApiClient
@@ -183,6 +187,20 @@ class DouYinCrawler(AbstractCrawler):
                 await douyin_store.update_douyin_aweme(aweme_detail)
         await self.batch_get_note_comments(aweme_id_list)
 
+    async def get_specified_awemes_only_comments_with_db_data(self):
+        """
+        获取指定创作者的视频列表，只获取评论
+        Returns:
+
+        """
+        aweme_id_list = []
+        creators_list = await get_all_creators_list()
+        for creator in creators_list:
+            aweme_list = await get_aweme_list_by_creator_id(creator.get("user_id"))
+            for aweme in aweme_list:
+                aweme_id_list.append(aweme.get("aweme_id"))
+        await self.batch_get_note_comments(aweme_id_list)
+
     async def get_aweme_detail(
         self, aweme_id: str, semaphore: asyncio.Semaphore
     ) -> Any:
@@ -222,6 +240,9 @@ class DouYinCrawler(AbstractCrawler):
         task_list: List[Task] = []
         semaphore = asyncio.Semaphore(config.MAX_CONCURRENCY_NUM)
         for aweme_id in aweme_list:
+            utils.logger.info(
+                f"[DouYinCrawler.batch_get_note_comments] aweme_id: {aweme_id}"
+            )
             task = asyncio.create_task(
                 self.get_comments_async_task(aweme_id, semaphore), name=aweme_id
             )

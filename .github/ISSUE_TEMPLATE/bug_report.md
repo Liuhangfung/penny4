@@ -9,8 +9,8 @@ assignees: ''
 ## 🔍 问题检查清单  
 <!-- 请在提交issue前确认以下事项 -->  
 
-- [ ] 我已经仔细阅读了常见问题汇总文档  
-- [ ] 我已经搜索并查看了已关闭的issues，确认没有类似的问题  
+- [ ] 我已经仔细阅读了README中的[常见问题汇总](https://github.com/MediaCrawlerPro/MediaCrawlerPro-Python/issues/8) 
+- [ ] 我已经搜索并查看了[已关闭的issues](https://github.com/MediaCrawlerPro/MediaCrawlerPro-Python/issues?q=is%3Aissue+is%3Aclosed)  
 - [ ] 我确认这不是由于验证码、Cookie过期、Cookie提取错误、平台风控等常见原因导致的问题  
 
 ## 🐛 问题描述  

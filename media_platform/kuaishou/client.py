@@ -518,7 +518,8 @@ class KuaiShouApiClient(AbstractApiClient):
         Returns:
 
         """
-        vision_profile = await self.get_creator_profile(user_id)
+        vision_res = await self.get_creator_profile(user_id)
+        vision_profile = vision_res.get("visionProfile", {})
         return vision_profile.get("userProfile")
 
     async def get_all_videos_by_creator(

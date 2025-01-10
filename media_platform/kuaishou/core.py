@@ -255,9 +255,13 @@ class KuaiShouCrawler(AbstractCrawler):
         for user_id in config.KS_CREATOR_ID_LIST:
             # get creator detail info from web html content
             createor_info: Dict = await self.ks_client.get_creator_info(user_id=user_id)
-            if createor_info:
-                await kuaishou_store.save_creator(user_id, creator=createor_info)
+            if not createor_info:
+                utils.logger.error(
+                    f"[KuaiShouCrawler.get_creators_and_videos] get creator: {user_id} info error: {createor_info}"
+                )
+                continue
 
+            await kuaishou_store.save_creator(user_id, creator=createor_info)
             # Get all video information of the creator
             all_video_list = await self.ks_client.get_all_videos_by_creator(
                 user_id=user_id,

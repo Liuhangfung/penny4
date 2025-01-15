@@ -537,3 +537,6 @@ alter table xhs_note_comment add column `like_count` varchar(255) NOT NULL DEFAU
 
 -- 小红书笔记评论添加笔记链接 for issue : https://github.com/MediaCrawlerPro/MediaCrawlerPro-Python/issues/116
 alter table xhs_note_comment add column `note_url` varchar(255) NOT NULL DEFAULT '' COMMENT '所属的笔记链接';
+
+-- 抖音评论添加评论图片列表 for issue : https://github.com/MediaCrawlerPro/MediaCrawlerPro-Python/issues/171
+alter table douyin_aweme_comment add column `pictures` varchar(500) NOT NULL DEFAULT '' COMMENT '评论图片列表';

@@ -79,6 +79,30 @@ def _extract_video_download_url(aweme_detail: Dict) -> str:
     return actual_url_list[-1]
 
 
+def _extract_comment_image_list(comment_item: Dict) -> List[str]:
+    """
+    提取评论图片列表
+
+    Args:
+        comment_item (Dict): 抖音评论
+
+    Returns:
+        List[str]: 评论图片列表
+    """
+    images_res: List[str] = []
+    image_list: List[Dict] = comment_item.get("image_list", [])
+
+    if not image_list:
+        return []
+
+    for image in image_list:
+        image_url_list = image.get("origin_url", {}).get("url_list", [])
+        if image_url_list and len(image_url_list) > 1:
+            images_res.append(image_url_list[1])
+
+    return images_res
+
+
 async def batch_update_douyin_aweme(aweme_item: List[Dict]):
     for item in aweme_item:
         await update_douyin_aweme(item)
@@ -163,6 +187,7 @@ async def update_dy_aweme_comment(aweme_id: str, comment_item: Dict):
         "like_count": (
             comment_item.get("digg_count") if comment_item.get("digg_count") else 0
         ),
+        "pictures": ",".join(_extract_comment_image_list(comment_item)),
     }
     utils.logger.info(
         f"[store.douyin.update_dy_aweme_comment] douyin aweme comment: {comment_id}, content: {save_comment_item.get('content')}"

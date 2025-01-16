@@ -19,8 +19,7 @@ from urllib.parse import urlencode
 
 import httpx
 from httpx import Response
-from tenacity import (RetryError, retry, stop_after_attempt, wait_fixed,
-                      wait_random)
+from tenacity import RetryError, retry, stop_after_attempt, wait_fixed, wait_random
 
 import config
 from base.base_crawler import AbstractApiClient
@@ -31,8 +30,14 @@ from pkg.account_pool.pool import AccountWithIpPoolManager
 from pkg.rpc.sign_srv_client import SignServerClient, XhsSignRequest
 from pkg.tools import utils
 
-from .exception import (AccessFrequencyError, DataFetchError, ErrorEnum,
-                        IPBlockError, NeedVerifyError, SignError)
+from .exception import (
+    AccessFrequencyError,
+    DataFetchError,
+    ErrorEnum,
+    IPBlockError,
+    NeedVerifyError,
+    SignError,
+)
 from .extractor import XiaoHongShuExtractor
 from .field import SearchNoteType, SearchSortType
 from .help import get_search_id
@@ -569,13 +574,24 @@ class XiaoHongShuClient(AbstractApiClient):
                 result.extend(comments)
         return result
 
-    async def get_creator_info(self, user_id: str) -> Optional[Dict]:
+    async def get_creator_info(
+        self, user_id: str, xsec_token: str, xsec_source: str
+    ) -> Optional[Dict]:
         """
         通过解析网页版的用户主页HTML，获取用户个人简要信息
         PC端用户主页的网页存在window.__INITIAL_STATE__这个变量上的，解析它即可
-        eg: https://www.xiaohongshu.com/user/profile/59d8cb33de5fb4696bf17217
+
+        Args:
+            user_id: 用户ID
+            xsec_token: 验证token
+            xsec_source: 渠道来源
+
+        Returns:
+
         """
-        uri = f"/user/profile/{user_id}"
+        uri = (
+            f"/user/profile/{user_id}?xsec_token={xsec_token}&xsec_source={xsec_source}"
+        )
         response: Response = await self.request(
             "GET",
             XHS_INDEX_URL + uri,
@@ -587,7 +603,12 @@ class XiaoHongShuClient(AbstractApiClient):
         return creator_info
 
     async def get_notes_by_creator(
-        self, creator: str, cursor: str, page_size: int = 30
+        self,
+        creator: str,
+        cursor: str,
+        page_size: int = 30,
+        xsec_token: str = "",
+        xsec_source: str = "",
     ) -> Dict:
         """
         获取博主的笔记
@@ -595,6 +616,8 @@ class XiaoHongShuClient(AbstractApiClient):
             creator: 博主ID
             cursor: 上一页最后一条笔记的ID
             page_size: 分页数据长度
+            xsec_token: 验证token
+            xsec_source: 渠道来源
 
         Returns:
 
@@ -605,6 +628,8 @@ class XiaoHongShuClient(AbstractApiClient):
             "cursor": cursor,
             "num": page_size,
             "image_formats": "jpg,webp,avif",
+            "xsec_token": xsec_token,
+            "xsec_source": xsec_source,
         }
         return await self.get(uri, data)
 
@@ -613,6 +638,8 @@ class XiaoHongShuClient(AbstractApiClient):
         user_id: str,
         crawl_interval: float = 1.0,
         callback: Optional[Callable] = None,
+        xsec_token: str = "",
+        xsec_source: str = "",
     ) -> List[Dict]:
         """
         获取指定用户下的所有发过的帖子，该方法会一直查找一个用户下的所有帖子信息
@@ -620,6 +647,8 @@ class XiaoHongShuClient(AbstractApiClient):
             user_id: 用户ID
             crawl_interval: 爬取一次的延迟单位（秒）
             callback: 一次分页爬取结束后的更新回调函数
+            xsec_token: 验证token
+            xsec_source: 渠道来源
 
         Returns:
 
@@ -628,7 +657,12 @@ class XiaoHongShuClient(AbstractApiClient):
         notes_has_more = True
         notes_cursor = ""
         while notes_has_more:
-            notes_res = await self.get_notes_by_creator(user_id, notes_cursor)
+            notes_res = await self.get_notes_by_creator(
+                user_id,
+                notes_cursor,
+                xsec_token=xsec_token,
+                xsec_source=xsec_source,
+            )
             if not notes_res:
                 utils.logger.error(
                     f"[XiaoHongShuClient.get_notes_by_creator] The current creator may have been banned by xhs, so they cannot access the data."

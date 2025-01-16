@@ -12,7 +12,7 @@
 import random
 import time
 
-from model.m_xiaohongshu import NoteUrlInfo
+from model.m_xiaohongshu import NoteUrlInfo, CreatorUrlInfo
 from pkg.tools.crawler_util import extract_url_params_to_dict
 
 
@@ -86,6 +86,25 @@ def parse_note_info_from_note_url(url: str) -> NoteUrlInfo:
     xsec_token = params.get("xsec_token", "")
     xsec_source = params.get("xsec_source", "")
     return NoteUrlInfo(note_id=note_id, xsec_token=xsec_token, xsec_source=xsec_source)
+
+
+def parse_creator_info_from_creator_url(url: str) -> CreatorUrlInfo:
+    """
+    从小红书创作者主页url中解析出创作者信息
+
+    Args:
+        url (str): 创作者主页url
+
+    Returns:
+        CreatorUrlInfo: 创作者信息
+    """
+    creator_id = url.split("/")[-1].split("?")[0]
+    params = extract_url_params_to_dict(url)
+    xsec_token = params.get("xsec_token", "")
+    xsec_source = params.get("xsec_source", "")
+    return CreatorUrlInfo(
+        creator_id=creator_id, xsec_token=xsec_token, xsec_source=xsec_source
+    )
 
 
 if __name__ == "__main__":

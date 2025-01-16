@@ -67,9 +67,17 @@ XHS_SPECIFIED_NOTE_URL_LIST = [
     # ........................
 ]
 
+# 已废弃⚠️⚠️⚠️指定小红书创作者ID列表
+# 已废弃⚠️⚠️⚠️ 指定小红书创作者ID列表会因为缺少xsec_token和xsec_source参数导致爬取主页和主页的笔记列表失败
 # 指定小红书创作者ID列表
-XHS_CREATOR_ID_LIST = [
-    "66e3df16000000000b03114e",
+# XHS_CREATOR_ID_LIST = [
+#     "66215710000000000303097b",
+#     # ........................
+# ]
+
+# 指定小红书创作者主页url列表, 需要携带xsec_token和xsec_source参数
+XHS_CREATOR_URL_LIST = [
+    "https://www.xiaohongshu.com/user/profile/6787d99e000000000801be3c?xsec_token=ABxEHohdPmLN0EJ69U8tUF5sZae5EFo3y1HW0E18dVHug=&xsec_source=pc_feed",
     # ........................
 ]
 

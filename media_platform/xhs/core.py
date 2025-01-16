@@ -17,7 +17,7 @@ from typing import Dict, List, Optional
 import config
 import constant
 from base.base_crawler import AbstractCrawler
-from model.m_xiaohongshu import NoteUrlInfo
+from model.m_xiaohongshu import CreatorUrlInfo, NoteUrlInfo
 from pkg.account_pool.pool import AccountWithIpPoolManager
 from pkg.proxy.proxy_ip_pool import ProxyIpPool, create_ip_pool
 from pkg.tools import utils
@@ -27,7 +27,7 @@ from var import crawler_type_var, source_keyword_var
 from .client import XiaoHongShuClient
 from .exception import DataFetchError
 from .field import SearchSortType
-from .help import parse_note_info_from_note_url
+from .help import parse_creator_info_from_creator_url, parse_note_info_from_note_url
 
 
 class XiaoHongShuCrawler(AbstractCrawler):
@@ -183,23 +183,32 @@ class XiaoHongShuCrawler(AbstractCrawler):
         utils.logger.info(
             "[XiaoHongShuCrawler.get_creators_and_notes] Begin get xiaohongshu creators"
         )
-        for user_id in config.XHS_CREATOR_ID_LIST:
+        for creator_url in config.XHS_CREATOR_URL_LIST:
+            creator_url_info: CreatorUrlInfo = parse_creator_info_from_creator_url(
+                creator_url
+            )
             createor_info: Dict = await self.xhs_client.get_creator_info(
-                user_id=user_id
+                user_id=creator_url_info.creator_id,
+                xsec_token=creator_url_info.xsec_token,
+                xsec_source=creator_url_info.xsec_source,
             )
             if createor_info:
-                await xhs_store.save_creator(user_id, creator=createor_info)
+                await xhs_store.save_creator(
+                    creator_url_info.creator_id, creator=createor_info
+                )
             else:
                 utils.logger.error(
-                    f"[XiaoHongShuCrawler.get_creators_and_notes] Get creator info error, user_id: {user_id}"
+                    f"[XiaoHongShuCrawler.get_creators_and_notes] Get creator info error, user_id: {creator_url_info.creator_id}"
                 )
                 continue
 
             # Get all note information of the creator
             all_notes_list = await self.xhs_client.get_all_notes_by_creator(
-                user_id=user_id,
+                user_id=creator_url_info.creator_id,
                 crawl_interval=0,
                 callback=self.fetch_creator_notes_detail,
+                xsec_token=creator_url_info.xsec_token,
+                xsec_source=creator_url_info.xsec_source,
             )
 
             note_ids = [note_item.get("note_id", "") for note_item in all_notes_list]

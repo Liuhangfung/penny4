@@ -15,6 +15,7 @@
 # @Desc    :
 from typing import List
 
+from constant.douyin import DOUYIN_INDEX_URL, DOUYIN_NOTE_TYPE, DOUYIN_VIDEO_TYPE
 from var import source_keyword_var
 
 from .douyin_store_impl import *
@@ -103,6 +104,21 @@ def _extract_comment_image_list(comment_item: Dict) -> List[str]:
     return images_res
 
 
+def _extract_aweme_detail_url(aweme_item: Dict) -> str:
+    """
+    提取抖音作品的详情页地址（视频、笔记）
+
+    Args:
+        aweme_item (Dict): 抖音作品
+
+    Returns:
+        str: 抖音作品的详情页地址
+    """
+    if aweme_item.get("aweme_type") == DOUYIN_NOTE_TYPE:
+        return DOUYIN_INDEX_URL + f"/note/{aweme_item.get('aweme_id')}"
+    return DOUYIN_INDEX_URL + f"/video/{aweme_item.get('aweme_id')}"
+
+
 async def batch_update_douyin_aweme(aweme_item: List[Dict]):
     for item in aweme_item:
         await update_douyin_aweme(item)
@@ -131,7 +147,7 @@ async def update_douyin_aweme(aweme_item: Dict):
         "share_count": str(interact_info.get("share_count")),
         "ip_location": aweme_item.get("ip_label", ""),
         "last_modify_ts": utils.get_current_timestamp(),
-        "aweme_url": f"https://www.douyin.com/video/{aweme_id}",
+        "aweme_url": _extract_aweme_detail_url(aweme_item),
         "cover_url": _extract_content_cover_url(aweme_item),
         "video_download_url": _extract_video_download_url(aweme_item),
         "source_keyword": source_keyword_var.get(),

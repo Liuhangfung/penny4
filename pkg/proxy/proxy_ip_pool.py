@@ -1,12 +1,12 @@
-# 声明：本代码仅供学习和研究目的使用。使用者应遵守以下原则：  
-# 1. 不得用于任何商业用途。  
-# 2. 使用时应遵守目标平台的使用条款和robots.txt规则。  
-# 3. 不得进行大规模爬取或对平台造成运营干扰。  
-# 4. 应合理控制请求频率，避免给目标平台带来不必要的负担。   
+# 声明：本代码仅供学习和研究目的使用。使用者应遵守以下原则：
+# 1. 不得用于任何商业用途。
+# 2. 使用时应遵守目标平台的使用条款和robots.txt规则。
+# 3. 不得进行大规模爬取或对平台造成运营干扰。
+# 4. 应合理控制请求频率，避免给目标平台带来不必要的负担。
 # 5. 不得用于任何非法或不当的用途。
-#   
-# 详细许可条款请参阅项目根目录下的LICENSE文件。  
-# 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。  
+#
+# 详细许可条款请参阅项目根目录下的LICENSE文件。
+# 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。
 
 
 # -*- coding: utf-8 -*-
@@ -28,7 +28,9 @@ from .types import IpInfoModel, ProviderNameEnum
 
 
 class ProxyIpPool:
-    def __init__(self, ip_pool_count: int, enable_validate_ip: bool, ip_provider: ProxyProvider) -> None:
+    def __init__(
+        self, ip_pool_count: int, enable_validate_ip: bool, ip_provider: ProxyProvider
+    ) -> None:
         """
 
         Args:
@@ -36,7 +38,7 @@ class ProxyIpPool:
             enable_validate_ip:
             ip_provider:
         """
-        self.valid_ip_url = "https://echo.apifox.com/ip"  # 验证 IP 是否有效的地址
+        self.valid_ip_url = "https://echo.apifox.cn/"  # 验证 IP 是否有效的地址
         self.ip_pool_count = ip_pool_count
         self.enable_validate_ip = enable_validate_ip
         self.proxy_list: List[IpInfoModel] = []
@@ -56,7 +58,9 @@ class ProxyIpPool:
         :param proxy:
         :return:
         """
-        utils.logger.info(f"[ProxyIpPool._is_valid_proxy] testing {proxy.ip} is it valid ")
+        utils.logger.info(
+            f"[ProxyIpPool._is_valid_proxy] testing {proxy.ip} is it valid "
+        )
         try:
             httpx_proxy = {
                 f"{proxy.protocol}": f"http://{proxy.user}:{proxy.password}@{proxy.ip}:{proxy.port}"
@@ -68,7 +72,9 @@ class ProxyIpPool:
             else:
                 return False
         except Exception as e:
-            utils.logger.info(f"[ProxyIpPool._is_valid_proxy] testing {proxy.ip} err: {e}")
+            utils.logger.info(
+                f"[ProxyIpPool._is_valid_proxy] testing {proxy.ip} err: {e}"
+            )
             raise e
 
     async def mark_ip_invalid(self, proxy: IpInfoModel):
@@ -80,7 +86,13 @@ class ProxyIpPool:
         utils.logger.info(f"[ProxyIpPool.mark_ip_invalid] mark {proxy.ip} invalid")
         self.ip_provider.mark_ip_invalid(proxy)
         for p in self.proxy_list:
-            if p.ip == proxy.ip and p.port == proxy.port and p.protocol == proxy.protocol and p.user == proxy.user and p.password == proxy.password:
+            if (
+                p.ip == proxy.ip
+                and p.port == proxy.port
+                and p.protocol == proxy.protocol
+                and p.user == proxy.user
+                and p.password == proxy.password
+            ):
                 self.proxy_list.remove(p)
                 break
 
@@ -97,7 +109,9 @@ class ProxyIpPool:
         self.proxy_list.remove(proxy)  # 取出来一个IP就应该移出掉
         if self.enable_validate_ip:
             if not await self._is_valid_proxy(proxy):
-                raise Exception("[ProxyIpPool.get_proxy] current ip invalid and again get it")
+                raise Exception(
+                    "[ProxyIpPool.get_proxy] current ip invalid and again get it"
+                )
         return proxy
 
     async def _reload_proxies(self):
@@ -114,8 +128,11 @@ IpProxyProvider: Dict[str, ProxyProvider] = {
 }
 
 
-async def create_ip_pool(ip_pool_count: int, enable_validate_ip: bool,
-                         ip_provider=config.IP_PROXY_PROVIDER_NAME) -> ProxyIpPool:
+async def create_ip_pool(
+    ip_pool_count: int,
+    enable_validate_ip: bool,
+    ip_provider=config.IP_PROXY_PROVIDER_NAME,
+) -> ProxyIpPool:
     """
      创建 IP 代理池
     :param ip_pool_count: ip池子的数量
@@ -123,13 +140,14 @@ async def create_ip_pool(ip_pool_count: int, enable_validate_ip: bool,
     :param ip_provider: 代理IP提供商名称
     :return:
     """
-    pool = ProxyIpPool(ip_pool_count=ip_pool_count,
-                       enable_validate_ip=enable_validate_ip,
-                       ip_provider=IpProxyProvider.get(ip_provider)
-                       )
+    pool = ProxyIpPool(
+        ip_pool_count=ip_pool_count,
+        enable_validate_ip=enable_validate_ip,
+        ip_provider=IpProxyProvider.get(ip_provider),
+    )
     await pool.load_proxies()
     return pool
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     pass

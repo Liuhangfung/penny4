@@ -207,11 +207,16 @@ class ZhihuExtractor:
 
         if not author.get("id"):
             author = author.get("member")
+
         res.user_id = author.get("id")
         res.user_nickname = author.get("name")
         res.user_avatar = author.get("avatar_url") or author.get("avatarUrl")
         res.url_token = author.get("url_token") or author.get("urlToken")
-        res.user_link = f"{zhihu_constant.ZHIHU_URL}/people/{res.url_token}"
+        if not res.url_token:
+            res.url_token = ""
+            res.user_link = ""
+        else:
+            res.user_link = f"{zhihu_constant.ZHIHU_URL}/people/{res.url_token}"
         return res
 
     def extract_comments(

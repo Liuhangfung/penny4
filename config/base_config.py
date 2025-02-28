@@ -77,7 +77,7 @@ XHS_SPECIFIED_NOTE_URL_LIST = [
 
 # 指定小红书创作者主页url列表, 需要携带xsec_token和xsec_source参数
 XHS_CREATOR_URL_LIST = [
-    "https://www.xiaohongshu.com/user/profile/6787d99e000000000801be3c?xsec_token=ABxEHohdPmLN0EJ69U8tUF5sZae5EFo3y1HW0E18dVHug=&xsec_source=pc_feed",
+    "https://www.xiaohongshu.com/user/profile/57eac44f82ec390709962976?xsec_token=ABH53bxuX45gNaE5O_N6cHYyNll8nheUV-ZkdHbeChBkM=&xsec_source=pc_feed"
     # ........................
 ]
 

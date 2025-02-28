@@ -72,7 +72,7 @@ class XiaoHongShuClient(AbstractApiClient):
             "Cookie": self._cookies,
             "origin": "https://www.xiaohongshu.com",
             "referer": "https://www.xiaohongshu.com/",
-            "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
+            "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
         }
 
     @property

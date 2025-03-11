@@ -97,6 +97,7 @@ class KuaiShouCrawler(AbstractCrawler):
         start_page = config.START_PAGE
         for keyword in config.KEYWORDS.split(","):
             source_keyword_var.set(keyword)
+            search_session_id = ""
             utils.logger.info(
                 f"[KuaiShouCrawler.search] Current search keyword: {keyword}"
             )
@@ -115,6 +116,7 @@ class KuaiShouCrawler(AbstractCrawler):
                 videos_res = await self.ks_client.search_info_by_keyword(
                     keyword=keyword,
                     pcursor=str(page),
+                    search_session_id=search_session_id,
                 )
                 if not videos_res:
                     utils.logger.error(
@@ -128,7 +130,7 @@ class KuaiShouCrawler(AbstractCrawler):
                         f"[KuaiShouCrawler.search] search info by keyword:{keyword} not found data "
                     )
                     continue
-
+                search_session_id = vision_search_photo.get("searchSessionId", "")
                 for video_detail in vision_search_photo.get("feeds"):
                     video_id_list.append(video_detail.get("photo", {}).get("id"))
                     await kuaishou_store.update_kuaishou_video(video_item=video_detail)

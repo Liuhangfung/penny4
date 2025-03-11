@@ -309,19 +309,27 @@ class KuaiShouApiClient(AbstractApiClient):
             ping_flag = False
         return ping_flag
 
-    async def search_info_by_keyword(self, keyword: str, pcursor: str) -> Dict:
+    async def search_info_by_keyword(
+        self, keyword: str, pcursor: str, search_session_id: str = ""
+    ) -> Dict:
         """
         关键词搜索接口
         Args:
             keyword: 关键词
             pcursor: 分页游标
+            search_session_id: 搜索会话ID
 
         Returns:
 
         """
         post_data = {
             "operationName": "visionSearchPhoto",
-            "variables": {"keyword": keyword, "pcursor": pcursor, "page": "search"},
+            "variables": {
+                "keyword": keyword,
+                "pcursor": pcursor,
+                "page": "search",
+                "searchSessionId": search_session_id,
+            },
             "query": self._graphql.get("search_query"),
         }
         return await self.post("", post_data)

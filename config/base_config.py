@@ -16,7 +16,7 @@ from typing import List
 from constant import EXCEL_ACCOUNT_SAVE
 
 PLATFORM = "xhs"
-KEYWORDS = "python,golang"
+KEYWORDS = "deepseek,chatgpt"
 
 # 具体值参见media_platform.xxx.field下的枚举值，暂时只支持小红书
 SORT_TYPE = "popularity_descending"

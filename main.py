@@ -25,6 +25,7 @@ from media_platform.tieba import TieBaCrawler
 from media_platform.weibo import WeiboCrawler
 from media_platform.xhs import XiaoHongShuCrawler
 from media_platform.zhihu import ZhihuCrawler
+from constant import MYSQL_ACCOUNT_SAVE
 
 
 class CrawlerFactory:
@@ -76,15 +77,20 @@ async def main():
     # parse cmd
     cmd_arg.parse_cmd()
 
-    # init db
-    if config.SAVE_DATA_OPTION == "db":
+    # store or read using database, init db
+    if config.SAVE_DATA_OPTION == "db" or config.ACCOUNT_POOL_SAVE_TYPE in [
+        MYSQL_ACCOUNT_SAVE
+    ]:
         await db.init_db()
 
     crawler = CrawlerFactory.create_crawler(platform=config.PLATFORM)
     await crawler.async_initialize()
     await crawler.start()
 
-    if config.SAVE_DATA_OPTION == "db":
+    # store or read using database, close db
+    if config.SAVE_DATA_OPTION == "db" or config.ACCOUNT_POOL_SAVE_TYPE in [
+        MYSQL_ACCOUNT_SAVE
+    ]:
         await db.close()
 
 

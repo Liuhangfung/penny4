@@ -62,8 +62,9 @@ ENABLE_LOG_FILE = True
 # ]
 
 # 指定小红书需要爬虫的笔记URL列表, 目前要携带xsec_token和xsec_source参数
+# xsec_token和xsec_source是有时效的，需要在web端打开一个小红书笔记，复制地址栏的url参数
 XHS_SPECIFIED_NOTE_URL_LIST = [
-    "https://www.xiaohongshu.com/explore/66fad51c000000001b0224b8?xsec_token=AB3rO-QopW5sgrJ41GwN01WCXh6yWPxjSoFI9D5JIMgKw=&xsec_source=pc_search"
+    # "https://www.xiaohongshu.com/explore/66fad51c000000001b0224b8?xsec_token=AB3rO-QopW5sgrJ41GwN01WCXh6yWPxjSoFI9D5JIMgKw=&xsec_source=pc_search"
     # ........................
 ]
 

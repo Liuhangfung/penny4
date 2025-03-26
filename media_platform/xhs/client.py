@@ -150,6 +150,7 @@ class XiaoHongShuClient(AbstractApiClient):
             "X-T": xhs_sign_resp.data.x_t,
             "x-S-Common": xhs_sign_resp.data.x_s_common,
             "X-B3-Traceid": xhs_sign_resp.data.x_b3_traceid,
+            "X-Mns": xhs_sign_resp.data.x_mns,
         }
         headers.update(self.headers)
         return headers

@@ -526,6 +526,8 @@ class DouYinApiClient(AbstractApiClient):
             "sec_user_id": sec_user_id,
             "publish_video_strategy_type": 2,
             "personal_center_strategy": 1,
+            "verifyFp": self.common_verfiy_params.verify_fp,
+            "fp": self.common_verfiy_params.verify_fp,
         }
         return await self.get(uri, params)
 

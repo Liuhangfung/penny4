@@ -276,22 +276,7 @@ class DouYinCrawler(AbstractCrawler):
         utils.logger.info(
             "[DouYinCrawler.get_creators_and_videos] Begin get douyin creators"
         )
-        semaphore = asyncio.Semaphore(config.MAX_CONCURRENCY_NUM)
-        task_list = [
-            self.fetch_creator_info_task(user_id, semaphore)
-            for user_id in config.DY_CREATOR_ID_LIST
-        ]
-        await asyncio.gather(*task_list)
-
-    async def fetch_creator_info_task(self, user_id: str, semaphore: asyncio.Semaphore):
-        """
-        Fetch creator info task
-
-        Args:
-            user_id (str): creator id
-            semaphore (asyncio.Semaphore): semaphore
-        """
-        async with semaphore:
+        for user_id in config.DY_CREATOR_ID_LIST:
             creator_info: Dict = await self.dy_client.get_user_info(user_id)
             if creator_info:
                 await douyin_store.save_creator(user_id, creator=creator_info)

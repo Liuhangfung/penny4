@@ -367,7 +367,12 @@ class DouYinApiClient(AbstractApiClient):
         Returns:
 
         """
-        params = {"aweme_id": aweme_id}
+        params = {
+            "aweme_id": aweme_id,
+            "verifyFp": self.common_verfiy_params.verify_fp,
+            "fp": self.common_verfiy_params.verify_fp,
+        }
+        params.update(self._verify_params)
         headers = copy.copy(self._headers)
         if "Origin" in headers:
             del headers["Origin"]
@@ -385,7 +390,15 @@ class DouYinApiClient(AbstractApiClient):
 
         """
         uri = "/aweme/v1/web/comment/list/"
-        params = {"aweme_id": aweme_id, "cursor": cursor, "count": 20, "item_type": 0}
+        params = {
+            "aweme_id": aweme_id,
+            "cursor": cursor,
+            "count": 20,
+            "item_type": 0,
+            "verifyFp": self.common_verfiy_params.verify_fp,
+            "fp": self.common_verfiy_params.verify_fp,
+        }
+        params.update(self._verify_params)
         keywords = request_keyword_var.get()
         referer_url = (
             "https://www.douyin.com/search/"
@@ -412,7 +425,10 @@ class DouYinApiClient(AbstractApiClient):
             "cursor": cursor,
             "count": 20,
             "item_type": 0,
+            "verifyFp": self.common_verfiy_params.verify_fp,
+            "fp": self.common_verfiy_params.verify_fp,
         }
+        params.update(self._verify_params)
         keywords = request_keyword_var.get()
         referer_url = (
             "https://www.douyin.com/search/"

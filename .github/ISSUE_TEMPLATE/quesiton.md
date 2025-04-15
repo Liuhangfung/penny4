@@ -1,13 +1,15 @@
----  
-name: 问题咨询  
-about: 提交使用过程中遇到的问题  
-title: '[问题] '  
-labels: question  
-assignees: ''  
----  
+---
+name: 问题咨询
+about: 提交使用过程中遇到的问题
+title: "[问题] "
+labels: question
+assignees: ''
+
+---
 
 ## ⚠️ 提交前确认  
 <!-- 请确认以下事项 -->  
+- [ ] 我已经看完了Pro的[B站使用视频](https://www.bilibili.com/video/BV12PsEeJERV)
 - [ ] 我已经仔细阅读了README中的常见问题汇总  
 - [ ] 我已经搜索并查看了[已关闭的issues](https://github.com/MediaCrawlerPro/MediaCrawlerPro-Python/issues?q=is%3Aissue+is%3Aclosed)  
 - [ ] 我确认这不是由于验证码、Cookie过期、Cookie提取错误、平台风控等常见原因导致的问题 

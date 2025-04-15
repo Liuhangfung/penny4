@@ -540,3 +540,6 @@ alter table xhs_note_comment add column `note_url` varchar(255) NOT NULL DEFAULT
 
 -- 抖音评论添加评论图片列表 for issue : https://github.com/MediaCrawlerPro/MediaCrawlerPro-Python/issues/171
 alter table douyin_aweme_comment add column `pictures` varchar(500) NOT NULL DEFAULT '' COMMENT '评论图片列表';
+
+-- 小红书评论增加target_comment_id for issue: https://github.com/MediaCrawlerPro/MediaCrawlerPro-Python/issues/23
+alter table xhs_note_comment add column `target_comment_id` varchar(64) DEFAULT NULL COMMENT '目标评论ID';

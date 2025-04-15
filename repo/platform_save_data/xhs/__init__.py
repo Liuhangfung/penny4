@@ -100,16 +100,18 @@ async def update_xhs_note(note_item: Dict):
 
 
 async def batch_update_xhs_note_comments(
-    note_id: str, comments: List[Dict], note_xsec_token: str
+    note_id: str, comments: List[Dict], note_xsec_token: str, root_comment_id: str = ""
 ):
     if not comments:
         return
     for comment_item in comments:
-        await update_xhs_note_comment(note_id, comment_item, note_xsec_token)
+        await update_xhs_note_comment(
+            note_id, comment_item, note_xsec_token, root_comment_id
+        )
 
 
 async def update_xhs_note_comment(
-    note_id: str, comment_item: Dict, note_xsec_token: str
+    note_id: str, comment_item: Dict, note_xsec_token: str, root_comment_id: str = ""
 ):
     user_info = comment_item.get("user_info", {})
     comment_id = comment_item.get("id")
@@ -128,7 +130,8 @@ async def update_xhs_note_comment(
         "avatar": user_info.get("image"),
         "sub_comment_count": comment_item.get("sub_comment_count", 0),
         "pictures": ",".join(comment_pictures),
-        "parent_comment_id": target_comment.get("id", 0),
+        "parent_comment_id": root_comment_id,
+        "target_comment_id": target_comment.get("id", ""),
         "last_modify_ts": utils.get_current_timestamp(),
         "like_count": (
             comment_item.get("like_count") if comment_item.get("like_count") else 0

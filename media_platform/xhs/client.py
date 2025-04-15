@@ -570,7 +570,7 @@ class XiaoHongShuClient(AbstractApiClient):
                     break
                 comments = comments_res["comments"]
                 if callback:
-                    await callback(note_id, comments, xsec_token)
+                    await callback(note_id, comments, xsec_token, root_comment_id)
                 await asyncio.sleep(crawl_interval)
                 result.extend(comments)
         return result

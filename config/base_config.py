@@ -13,7 +13,7 @@
 import os
 from typing import List
 
-from constant import EXCEL_ACCOUNT_SAVE
+from constant import MYSQL_ACCOUNT_SAVE
 
 PLATFORM = "xhs"
 KEYWORDS = "deepseek,chatgpt"
@@ -31,7 +31,7 @@ CRAWLER_TYPE = (
 SAVE_DATA_OPTION = "db"  # csv or db or json
 
 # 账号池保存类型选项配置,支持2种类型：xlsx、mysql
-ACCOUNT_POOL_SAVE_TYPE = os.getenv("ACCOUNT_POOL_SAVE_TYPE", EXCEL_ACCOUNT_SAVE)
+ACCOUNT_POOL_SAVE_TYPE = os.getenv("ACCOUNT_POOL_SAVE_TYPE", MYSQL_ACCOUNT_SAVE)
 
 # 爬取开始页数 默认从第一页开始
 START_PAGE = 1

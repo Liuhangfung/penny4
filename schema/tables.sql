@@ -543,3 +543,6 @@ alter table douyin_aweme_comment add column `pictures` varchar(500) NOT NULL DEF
 
 -- 小红书评论增加target_comment_id for issue: https://github.com/MediaCrawlerPro/MediaCrawlerPro-Python/issues/23
 alter table xhs_note_comment add column `target_comment_id` varchar(64) DEFAULT NULL COMMENT '目标评论ID';
+
+-- 抖音评论增加reply_to_reply_id for issue: https://github.com/MediaCrawlerPro/MediaCrawlerPro-Python/issues/23
+alter table douyin_aweme_comment add column `reply_to_reply_id` varchar(64) DEFAULT NULL COMMENT '目标评论ID';

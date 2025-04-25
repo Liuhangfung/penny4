@@ -177,6 +177,7 @@ async def update_dy_aweme_comment(aweme_id: str, comment_item: Dict):
     user_info = comment_item.get("user", {})
     comment_id = comment_item.get("cid")
     parent_comment_id = comment_item.get("reply_id", "0")
+    reply_to_reply_id = comment_item.get("reply_to_reply_id", "0")
     avatar_info = (
         user_info.get("avatar_medium", {})
         or user_info.get("avatar_300x300", {})
@@ -200,6 +201,7 @@ async def update_dy_aweme_comment(aweme_id: str, comment_item: Dict):
         "sub_comment_count": str(comment_item.get("reply_comment_total", 0)),
         "last_modify_ts": utils.get_current_timestamp(),
         "parent_comment_id": parent_comment_id,
+        "reply_to_reply_id": reply_to_reply_id,
         "like_count": (
             comment_item.get("digg_count") if comment_item.get("digg_count") else 0
         ),

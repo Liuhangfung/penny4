@@ -23,9 +23,7 @@ SORT_TYPE = "popularity_descending"
 
 # 具体值参见media_platform.xxx.field下的枚举值，暂时只支持抖音
 PUBLISH_TIME_TYPE = 0
-CRAWLER_TYPE = (
-    "search"  # 爬取类型，search(关键词搜索) | detail(帖子详情)| creator(创作者主页数据)
-)
+CRAWLER_TYPE = "search"  # 爬取类型，search(关键词搜索) | detail(帖子详情)| creator(创作者主页数据) | homefeed(首页推荐)
 
 # 数据保存类型选项配置,支持三种类型：csv、db、json
 SAVE_DATA_OPTION = "db"  # csv or db or json
@@ -43,7 +41,7 @@ CRAWLER_MAX_NOTES_COUNT = 40
 MAX_CONCURRENCY_NUM = 1
 
 # 是否开启爬评论模式, 默认不开启爬评论
-ENABLE_GET_COMMENTS = True
+ENABLE_GET_COMMENTS = False
 
 # 是否开启爬二级评论模式, 默认不开启爬二级评论
 ENABLE_GET_SUB_COMMENTS = False

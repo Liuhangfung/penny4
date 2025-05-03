@@ -26,7 +26,7 @@ from var import crawler_type_var, source_keyword_var
 
 from .client import XiaoHongShuClient
 from .exception import DataFetchError
-from .field import SearchSortType
+from .field import FeedType, SearchSortType
 from .help import parse_creator_info_from_creator_url, parse_note_info_from_note_url
 
 
@@ -82,6 +82,9 @@ class XiaoHongShuCrawler(AbstractCrawler):
         elif config.CRAWLER_TYPE == "creator":
             # Get creator's information and their notes and comments
             await self.get_creators_and_notes()
+        elif config.CRAWLER_TYPE == "homefeed":
+            # Get homefeed notes and comments
+            await self.get_homefeed_notes()
         else:
             pass
 
@@ -378,3 +381,68 @@ class XiaoHongShuCrawler(AbstractCrawler):
                 callback=xhs_store.batch_update_xhs_note_comments,
                 xsec_token=xsec_token,
             )
+
+    async def get_homefeed_notes(self):
+        """
+        Get homefeed notes and comments
+        Returns:
+
+        """
+        utils.logger.info(
+            "[XiaoHongShuCrawler.get_homefeed_notes] Begin get xiaohongshu homefeed notes"
+        )
+        current_cursor = ""
+        saved_note_count = 0
+        note_index = 0
+        note_num = 18
+        while saved_note_count <= config.CRAWLER_MAX_NOTES_COUNT:
+            utils.logger.info(
+                f"[XiaoHongShuCrawler.get_homefeed_notes] Get homefeed notes, current_cursor: {current_cursor}, note_index: {note_index}, note_num: {note_num}"
+            )
+            homefeed_notes_res = await self.xhs_client.get_homefeed_notes(
+                category=FeedType.RECOMMEND,
+                cursor=current_cursor,
+                note_index=note_index,
+                note_num=note_num,
+            )
+            if not homefeed_notes_res:
+                utils.logger.info(
+                    f"[XiaoHongShuCrawler.get_homefeed_notes] No more content!"
+                )
+                break
+
+            cursor_score = homefeed_notes_res.get("cursor_score", "")
+            if not cursor_score:
+                utils.logger.info(
+                    f"[XiaoHongShuCrawler.get_homefeed_notes] No more content!"
+                )
+                break
+
+            items: List[Dict] = homefeed_notes_res.get("items", [])
+            current_cursor = cursor_score
+            note_index += note_num
+
+            note_id_list, xsec_tokens = [], []
+            semaphore = asyncio.Semaphore(config.MAX_CONCURRENCY_NUM)
+            task_list = [
+                self.get_note_detail_async_task(
+                    note_id=post_item.get("id"),
+                    xsec_source="pc_feed",
+                    xsec_token=post_item.get("xsec_token", ""),
+                    semaphore=semaphore,
+                )
+                for post_item in items
+                if post_item.get("model_type") not in ("rec_query", "hot_query")
+            ]
+            note_details = await asyncio.gather(*task_list)
+            for note_detail in note_details:
+                if note_detail:
+                    await xhs_store.update_xhs_note(note_detail)
+                    note_id_list.append(note_detail.get("note_id", ""))
+                    xsec_tokens.append(note_detail.get("xsec_token", ""))
+
+            saved_note_count += len(note_details)
+            utils.logger.info(
+                f"[XiaoHongShuCrawler.get_homefeed_notes] Note details: {note_details}"
+            )
+            await self.batch_get_note_comments(note_id_list, xsec_tokens)

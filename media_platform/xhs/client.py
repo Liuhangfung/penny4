@@ -39,7 +39,7 @@ from .exception import (
     SignError,
 )
 from .extractor import XiaoHongShuExtractor
-from .field import SearchNoteType, SearchSortType
+from .field import FeedType, SearchNoteType, SearchSortType
 from .help import get_search_id
 
 
@@ -755,3 +755,39 @@ class XiaoHongShuClient(AbstractApiClient):
         data = {"original_url": f"{XHS_INDEX_URL}/discovery/item/{note_id}?a=1"}
         response: Response = await self.post(uri, data=data, return_response=True)
         return response.json()
+
+    async def get_homefeed_notes(
+        self,
+        category: FeedType = FeedType.RECOMMEND,
+        cursor: str = "",
+        note_index: int = 0,
+        note_num: int = 18,
+    ) -> Dict:
+        """
+        Get homefeed notes and comments
+
+        Args:
+            category: 分类
+            cursor: 分页游标
+            note_index: 笔记分页索引
+            note_num: 笔记数量
+
+        Returns:
+
+        """
+        uri = "/api/sns/web/v1/homefeed"
+        data = {
+            "category": category.value,
+            "cursor_score": cursor,
+            "image_formats": ["jpg", "webp", "avif"],
+            "need_filter_image": False,
+            "need_num": note_num,
+            "note_index": note_index,
+            "num": note_num,
+            "refresh_type": 3,
+            "search_key": "",
+            "unread_begin_note_id": "",
+            "unread_end_note_id": "",
+            "unread_note_count": 0,
+        }
+        return await self.post(uri, data)

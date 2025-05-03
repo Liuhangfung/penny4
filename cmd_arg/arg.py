@@ -36,8 +36,8 @@ def parse_cmd():
     parser.add_argument(
         "--type",
         type=str,
-        help="crawler type (search | detail | creator)",
-        choices=["search", "detail", "creator"],
+        help="crawler type (search | detail | creator | homefeed)",
+        choices=["search", "detail", "creator", "homefeed"],
         default=config.CRAWLER_TYPE,
     )
     parser.add_argument(

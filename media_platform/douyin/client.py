@@ -66,7 +66,7 @@ class DouYinApiClient(AbstractApiClient):
             "accept-language": "zh-CN,zh;q=0.9",
             "Cookie": self._cookies,
             "origin": "https://www.douyin.com",
-            "referer": "https://www.douyin.com/",
+            "referer": "https://www.douyin.com/discover/",
             "user-agent": self._user_agent,
         }
 
@@ -99,10 +99,10 @@ class DouYinApiClient(AbstractApiClient):
             "browser_language": "zh-CN",
             "browser_platform": "MacIntel",
             "browser_name": "Chrome",
-            "browser_version": "127.0.0.0",
+            "browser_version": "135.0.0.0",
             "browser_online": "true",
             "engine_name": "Blink",
-            "engine_version": "127.0.0.0",
+            "engine_version": "135.0.0.0",
             "os_name": "Mac+OS",
             "os_version": "10.15.7",
             "cpu_core_num": 8,
@@ -268,6 +268,65 @@ class DouYinApiClient(AbstractApiClient):
             params = await self._pre_url_params(uri, params)
             return await self.request(
                 method="GET", url=f"{DOUYIN_API_URL}{uri}", params=params, **kwargs
+            )
+
+    async def post(
+        self,
+        uri: str,
+        params: Optional[Dict] = None,
+        data: Optional[Dict] = None,
+        need_sign: bool = True,
+        **kwargs,
+    ):
+        """
+        POST请求
+        Args:
+            uri: 请求的URI
+            params: 请求参数
+            data: 请求体
+            need_add_common_params: 是否需要添加公共参数
+
+        Returns:
+
+        """
+
+        try:
+            if need_sign:
+                params = await self._pre_url_params(uri, params)
+            headers = copy.copy(self._headers)
+            headers["Referer"] = "https://www.douyin.com/discover"
+            headers["Content-Type"] = "application/x-www-form-urlencoded; charset=UTF-8"
+            headers["X-Secsdk-Csrf-Token"] = "DOWNGRADE"
+            return await self.request(
+                method="POST",
+                url=f"{DOUYIN_API_URL}{uri}",
+                params=params,
+                data=data,
+                headers=headers,
+                **kwargs,
+            )
+        except RetryError as e:
+            # 获取原始异常
+            original_exception = e.last_attempt.exception()
+            traceback.print_exception(
+                type(original_exception),
+                original_exception,
+                original_exception.__traceback__,
+            )
+            utils.logger.error(
+                f"[DouYinApiClient.post] 重试了5次: {uri} 请求，均失败了，尝试更换账号与IP再次发起重试"
+            )
+
+            # 如果重试了5次次都还是异常了，那么尝试更换账号信息
+            await self.mark_account_invalid(self.account_info)
+            await self.update_account_info()
+            params = await self._pre_url_params(uri, params)
+            return await self.request(
+                method="POST",
+                url=f"{DOUYIN_API_URL}{uri}",
+                params=params,
+                data=data,
+                **kwargs,
             )
 
     async def pong(self) -> bool:
@@ -612,3 +671,61 @@ class DouYinApiClient(AbstractApiClient):
                 await callback(aweme_list)
             result.extend(aweme_list)
         return result
+
+    async def get_homefeed_aweme_list(
+        self,
+        tag_id: HomeFeedTagIdType,
+        refresh_index: int = 0,
+        count: int = 20,
+    ):
+        """
+        获取douyin首页中精选视频homefeed推荐信息流
+
+        Returns:
+
+        """
+        params = {
+            "device_platform": "webapp",
+            "aid": "6383",
+            "channel": "channel_pc_web",
+            "module_id": "3003101",
+            "count": count,
+            "filterGids": "",
+            "presented_ids": "",
+            "refresh_index": refresh_index,
+            "refer_id": "",
+            "refer_type": "10",
+            "awemePcRecRawData": '{"is_xigua_user":0,"is_client":false}',
+            "Seo-Flag": "0",
+            "install_time": "1744894545",
+            "tag_id": tag_id.value,
+            "use_lite_type": "0",
+            "xigua_user": "0",
+            "pc_client_type": "1",
+            "pc_libra_divert": "Mac",
+            "update_version_code": "170400",
+            "support_h265": "1",
+            "support_dash": "1",
+            "version_code": "170400",
+            "version_name": "17.4.0",
+            "cookie_enabled": "true",
+            "screen_width": "2560",
+            "screen_height": "1440",
+            "browser_language": "en",
+            "browser_platform": "MacIntel",
+            "browser_name": "Chrome",
+            "browser_version": "135.0.0.0",
+            "browser_online": "true",
+            "engine_name": "Blink",
+            "engine_version": "135.0.0.0",
+            "os_name": "Mac+OS",
+            "os_version": "10.15.7",
+            "cpu_core_num": "10",
+            "device_memory": "8",
+            "platform": "PC",
+            "downlink": "10",
+            "effective_type": "4g",
+            "round_trip_time": "100",
+        }
+
+        return await self.post("/aweme/v1/web/module/feed/", params, need_sign=False)

@@ -10,6 +10,7 @@
 
 
 import asyncio
+import json
 import random
 from asyncio import Task
 from typing import Any, Dict, List, Optional
@@ -30,7 +31,7 @@ from var import crawler_type_var, source_keyword_var
 
 from .client import DouYinApiClient
 from .exception import DataFetchError
-from .field import PublishTimeType
+from .field import HomeFeedTagIdType, PublishTimeType
 from .help import get_common_verify_params
 
 
@@ -88,7 +89,9 @@ class DouYinCrawler(AbstractCrawler):
         elif config.CRAWLER_TYPE == "creator":
             # Get the information and comments of the specified creator
             await self.get_creators_and_videos()
-
+        elif config.CRAWLER_TYPE == "homefeed":
+            # Get the information and comments of the specified creator
+            await self.get_homefeed_awemes()
         utils.logger.info("[DouYinCrawler.start] Douyin Crawler finished ...")
 
     async def search(self) -> None:
@@ -310,3 +313,46 @@ class DouYinCrawler(AbstractCrawler):
         for aweme_item in video_details:
             if aweme_item:
                 await douyin_store.update_douyin_aweme(aweme_item)
+
+    async def get_homefeed_awemes(self):
+        """
+        Get homefeed notes and comments
+        """
+        utils.logger.info(
+            "[DouYinCrawler.get_homefeed_notes] Begin get douyin homefeed notes"
+        )
+        current_refresh_index = 0
+        per_page_count = 20
+        saved_aweme_count = 0
+        while saved_aweme_count <= config.CRAWLER_MAX_NOTES_COUNT:
+            utils.logger.info(
+                f"[DouYinCrawler.get_homefeed_notes] Get homefeed notes, current_refresh_index: {current_refresh_index}, per_page_count: {per_page_count}, saved_aweme_count: {saved_aweme_count}"
+            )
+            homefeed_aweme_res = await self.dy_client.get_homefeed_aweme_list(
+                tag_id=HomeFeedTagIdType.KNOWLEDGE,
+                refresh_index=current_refresh_index,
+                count=per_page_count,
+            )
+            if not homefeed_aweme_res or not homefeed_aweme_res.get("StatusCode") != 0:
+                utils.logger.info(
+                    f"[DouYinCrawler.get_homefeed_notes] No more content!"
+                )
+                break
+
+            # extract aweme list from homefeed_aweme_res
+            cards: List[Dict] = homefeed_aweme_res.get("cards", [])
+            filtered_cards = [card for card in cards if card.get("type") == 1]
+            aweme_list = []
+            for card in filtered_cards:
+                aweme_json_str: str = card.get("aweme")
+                if not aweme_json_str:
+                    continue
+                aweme_info: Dict = json.loads(aweme_json_str)
+                if not aweme_info.get("aweme_id"):
+                    continue
+                aweme_id = aweme_info.get("aweme_id")
+                aweme_list.append(aweme_id)
+                await douyin_store.update_douyin_aweme(aweme_info)
+            current_refresh_index += per_page_count
+            saved_aweme_count += len(aweme_list)
+            await self.batch_get_note_comments(aweme_list)

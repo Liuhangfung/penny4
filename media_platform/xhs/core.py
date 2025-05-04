@@ -396,9 +396,6 @@ class XiaoHongShuCrawler(AbstractCrawler):
         note_index = 0
         note_num = 18
         while saved_note_count <= config.CRAWLER_MAX_NOTES_COUNT:
-            utils.logger.info(
-                f"[XiaoHongShuCrawler.get_homefeed_notes] Get homefeed notes, current_cursor: {current_cursor}, note_index: {note_index}, note_num: {note_num}"
-            )
             homefeed_notes_res = await self.xhs_client.get_homefeed_notes(
                 category=FeedType.RECOMMEND,
                 cursor=current_cursor,
@@ -446,6 +443,9 @@ class XiaoHongShuCrawler(AbstractCrawler):
                 f"[XiaoHongShuCrawler.get_homefeed_notes] Note details: {note_details}"
             )
             await self.batch_get_note_comments(note_id_list, xsec_tokens)
+            utils.logger.info(
+                f"[XiaoHongShuCrawler.get_homefeed_notes] Get homefeed notes, current_cursor: {current_cursor}, note_index: {note_index}, note_num: {note_num}"
+            )
 
         utils.logger.info(
             "[XiaoHongShuCrawler.get_homefeed_notes] XiaoHongShu homefeed notes crawler finished ..."

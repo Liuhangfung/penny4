@@ -293,9 +293,6 @@ class BilibiliCrawler(AbstractCrawler):
         current_page_idx = 1
         save_video_count = 0
         while save_video_count <= config.CRAWLER_MAX_NOTES_COUNT:
-            utils.logger.info(
-                f"[BilibiliCrawler.get_homefeed_videos] Get homefeed videos, current_page_idx: {current_page_idx}, per_page_count: {per_page_count}, save_video_count: {save_video_count}"
-            )
             homefeed_videos_res = await self.bili_client.get_homefeed_videos(
                 page_count=per_page_count, fresh_idx=current_page_idx
             )
@@ -317,9 +314,11 @@ class BilibiliCrawler(AbstractCrawler):
             # 复用get_specified_videos方法获取视频详情
             video_bvids_list = [video.get("bvid") for video in filtered_videos_list]
             await self.get_specified_videos(video_bvids_list)
-
             current_page_idx += 1
             save_video_count += len(filtered_videos_list)
+            utils.logger.info(
+                f"[BilibiliCrawler.get_homefeed_videos] Get homefeed videos, current_page_idx: {current_page_idx}, per_page_count: {per_page_count}, save_video_count: {save_video_count}"
+            )
 
         utils.logger.info(
             "[BilibiliCrawler.get_homefeed_videos] Bilibili homefeed videos crawler finished ..."

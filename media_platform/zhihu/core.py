@@ -13,7 +13,7 @@
 import asyncio
 import random
 from asyncio import Task
-from typing import List, Optional, cast
+from typing import Dict, List, Optional, cast
 
 import config
 import constant
@@ -27,13 +27,14 @@ from var import crawler_type_var, source_keyword_var
 
 from .client import ZhiHuClient
 from .exception import DataFetchError
-from .help import judge_zhihu_url
+from .help import judge_zhihu_url, ZhihuExtractor
 
 
 class ZhihuCrawler(AbstractCrawler):
 
     def __init__(self) -> None:
         self.zhihu_client = ZhiHuClient()
+        self._extractor = ZhihuExtractor()
 
     async def async_initialize(self):
         """
@@ -84,6 +85,8 @@ class ZhihuCrawler(AbstractCrawler):
         elif config.CRAWLER_TYPE == "creator":
             # Get creator's information and their notes and comments
             await self.get_creators_and_notes()
+        elif config.CRAWLER_TYPE == "homefeed":
+            await self.get_homefeed_notes()
         else:
             pass
 
@@ -315,3 +318,52 @@ class ZhihuCrawler(AbstractCrawler):
                 await zhihu_store.update_zhihu_content(note_detail)
 
         await self.batch_get_content_comments(need_get_comment_notes)
+
+    async def get_homefeed_notes(self):
+        """
+        Get homefeed notes and comments
+        """
+        utils.logger.info(
+            "[ZhihuCrawler.get_homefeed_notes] Begin get zhihu homefeed notes"
+        )
+        after_id, end_offset = 0, 0
+        page_number = 1
+        save_note_count = 0
+        session_token = ""
+        while save_note_count <= config.CRAWLER_MAX_NOTES_COUNT:
+            homefeed_notes_res = await self.zhihu_client.get_homefeed_notes(
+                page_number=page_number,
+                after_id=after_id,
+                end_offset=end_offset,
+                seesion_token=session_token,
+            )
+            paging_info: Dict = homefeed_notes_res.get("paging", {})
+            if not paging_info or paging_info.get("is_end", False):
+                utils.logger.info("No more homefeed notes")
+                break
+
+            content_list = self._extractor.extract_contents_from_homefeed(
+                homefeed_notes_res
+            )
+            for content in content_list:
+                await zhihu_store.update_zhihu_content(content)
+
+            # extract next request params from url
+            paging_info = self._extractor.extract_next_req_params_from_url(
+                paging_info, specific_params=["after_id", "end_offset", "session_token"]
+            )
+            after_id, end_offset, session_token = (
+                paging_info.get("after_id", 0),
+                paging_info.get("end_offset", 0),
+                paging_info.get("session_token", ""),
+            )
+            page_number += 1
+            save_note_count += len(content_list)
+            await self.batch_get_content_comments(content_list)
+            utils.logger.info(
+                f"[ZhihuCrawler.get_homefeed_notes] Get homefeed notes, page_number: {page_number}, save_note_count: {save_note_count}"
+            )
+
+        utils.logger.info(
+            "[ZhihuCrawler.get_homefeed_notes] Zhihu homefeed notes crawler finished ..."
+        )

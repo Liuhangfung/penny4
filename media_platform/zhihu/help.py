@@ -554,6 +554,35 @@ class ZhihuExtractor:
 
         return self._extract_zvideo_content(video_detail_info)
 
+    def extract_contents_from_homefeed(self, homefeed_res: Dict) -> List[ZhihuContent]:
+        """
+        extract contents from homefeed
+
+        Args:
+            homefeed_res (Dict): homefeed response data
+
+        Returns:
+            List[ZhihuContent]: contents list
+        """
+        if not homefeed_res:
+            return []
+
+        contents: List[ZhihuContent] = []
+        homefeed_data: Dict = homefeed_res.get("data", [])
+        if not homefeed_data:
+            return []
+        homefeed_data = [
+            item.get("target") for item in homefeed_data if item.get("type") == "feed"
+        ]
+        for item in homefeed_data:
+            if item.get("type") == zhihu_constant.ANSWER_NAME:
+                contents.append(self._extract_answer_content(item))
+            elif item.get("type") == zhihu_constant.ARTICLE_NAME:
+                contents.append(self._extract_article_content(item))
+            elif item.get("type") == zhihu_constant.VIDEO_NAME:
+                contents.append(self._extract_zvideo_content(item))
+        return contents
+
 
 def judge_zhihu_url(note_detail_url: str) -> str:
     """

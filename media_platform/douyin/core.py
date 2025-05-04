@@ -325,9 +325,6 @@ class DouYinCrawler(AbstractCrawler):
         per_page_count = 20
         saved_aweme_count = 0
         while saved_aweme_count <= config.CRAWLER_MAX_NOTES_COUNT:
-            utils.logger.info(
-                f"[DouYinCrawler.get_homefeed_notes] Get homefeed notes, current_refresh_index: {current_refresh_index}, per_page_count: {per_page_count}, saved_aweme_count: {saved_aweme_count}"
-            )
             homefeed_aweme_res = await self.dy_client.get_homefeed_aweme_list(
                 tag_id=HomeFeedTagIdType.KNOWLEDGE,
                 refresh_index=current_refresh_index,
@@ -353,9 +350,13 @@ class DouYinCrawler(AbstractCrawler):
                 aweme_id = aweme_info.get("aweme_id")
                 aweme_list.append(aweme_id)
                 await douyin_store.update_douyin_aweme(aweme_info)
+
             current_refresh_index += per_page_count
             saved_aweme_count += len(aweme_list)
             await self.batch_get_note_comments(aweme_list)
+            utils.logger.info(
+                f"[DouYinCrawler.get_homefeed_notes] Get homefeed notes, current_refresh_index: {current_refresh_index}, per_page_count: {per_page_count}, saved_aweme_count: {saved_aweme_count}"
+            )
 
         utils.logger.info(
             "[DouYinCrawler.get_homefeed_notes] Douyin homefeed notes crawler finished ..."

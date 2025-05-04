@@ -332,6 +332,9 @@ class KuaiShouCrawler(AbstractCrawler):
 
             # batch fetch video comments
             await self.batch_get_video_comments(video_id_list)
+            utils.logger.info(
+                f"[KuaiShouCrawler.get_homefeed_videos] Get homefeed videos, saved_video_count: {saved_video_count}"
+            )
 
         utils.logger.info(
             "[KuaiShouCrawler.get_homefeed_videos] Kuaishou homefeed videos crawler finished ..."

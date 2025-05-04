@@ -792,3 +792,29 @@ class ZhiHuClient(AbstractApiClient):
             f"[ZhiHuClient.get_all_answers_by_question_id] question id {question_id} get {len(all_answers)} answers"
         )
         return all_answers
+
+    async def get_homefeed_notes(
+        self, page_number: int, after_id: int, end_offset: int, seesion_token: str = ""
+    ) -> Dict:
+        """
+        Get homefeed notes
+
+        Args:
+            page_number: 页码
+            after_id:
+            end_offset: 结束偏移量
+            seesion_token: 会话token
+
+        Returns:
+
+        """
+        uri = "/api/v3/feed/topstory/recommend"
+        params = {
+            "action": "down",
+            "desktop": "true",
+            "after_id": after_id,
+            "end_offset": end_offset,
+            "page_number": page_number,
+            "session_token": seesion_token,
+        }
+        return await self.get(uri, params)

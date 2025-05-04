@@ -79,6 +79,8 @@ class KuaiShouCrawler(AbstractCrawler):
         elif config.CRAWLER_TYPE == "creator":
             # Get creator's information and their videos and comments
             await self.get_creators_and_videos()
+        elif config.CRAWLER_TYPE == "homefeed":
+            await self.get_homefeed_videos()
         else:
             pass
 
@@ -295,3 +297,42 @@ class KuaiShouCrawler(AbstractCrawler):
         for video_detail in video_details:
             if video_detail is not None:
                 await kuaishou_store.update_kuaishou_video(video_detail)
+
+    async def get_homefeed_videos(self):
+        """
+        Get homefeed videos and comments
+        """
+        utils.logger.info(
+            "[KuaiShouCrawler.get_homefeed_videos] Begin get kuaishou homefeed videos"
+        )
+        pcursor = ""
+        saved_video_count = 0
+        while saved_video_count <= config.CRAWLER_MAX_NOTES_COUNT:
+            homefeed_videos_res = await self.ks_client.get_homefeed_videos(pcursor)
+            if not homefeed_videos_res:
+                utils.logger.info(
+                    "[KuaiShouCrawler.get_homefeed_videos] No more content!"
+                )
+                break
+
+            brilliant_type_data: Dict = homefeed_videos_res.get("brilliantTypeData")
+            pcursor = brilliant_type_data.get("pcursor", "")
+            videos_list: List[Dict] = brilliant_type_data.get("feeds", [])
+            if not videos_list:
+                utils.logger.info(
+                    "[KuaiShouCrawler.get_homefeed_videos] No more content!"
+                )
+                break
+
+            video_id_list = []
+            for video_detail in videos_list:
+                video_id_list.append(video_detail.get("photo", {}).get("id"))
+                await kuaishou_store.update_kuaishou_video(video_item=video_detail)
+            saved_video_count += len(videos_list)
+
+            # batch fetch video comments
+            await self.batch_get_video_comments(video_id_list)
+
+        utils.logger.info(
+            "[KuaiShouCrawler.get_homefeed_videos] Kuaishou homefeed videos crawler finished ..."
+        )

@@ -30,6 +30,7 @@ class KuaiShouGraphQL:
             "vision_profile_photo_list.graphql",
             "vision_profile_user_list.graphql",
             "vision_sub_comment_list.graphql",
+            "homefeed_videos.graphql",
         ]
 
         for file in graphql_files:

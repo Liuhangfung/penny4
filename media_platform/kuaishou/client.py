@@ -569,3 +569,24 @@ class KuaiShouApiClient(AbstractApiClient):
             await asyncio.sleep(crawl_interval)
             result.extend(videos)
         return result
+
+    async def get_homefeed_videos(self, pcursor: str = "") -> Dict:
+        """
+        获取快手首页视频
+
+        Args:
+            pcursor: 分页游标
+
+        Returns:
+
+        """
+        post_data = {
+            "operationName": "brilliantTypeDataQuery",
+            "variables": {
+                "pcursor": pcursor,
+                "hotChannelId": "00",
+                "page": "brilliant",
+            },
+            "query": self._graphql.get("homefeed_videos"),
+        }
+        return await self.post("", post_data)

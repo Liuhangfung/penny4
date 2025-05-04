@@ -446,3 +446,7 @@ class XiaoHongShuCrawler(AbstractCrawler):
                 f"[XiaoHongShuCrawler.get_homefeed_notes] Note details: {note_details}"
             )
             await self.batch_get_note_comments(note_id_list, xsec_tokens)
+
+        utils.logger.info(
+            "[XiaoHongShuCrawler.get_homefeed_notes] XiaoHongShu homefeed notes crawler finished ..."
+        )

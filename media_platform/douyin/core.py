@@ -356,3 +356,7 @@ class DouYinCrawler(AbstractCrawler):
             current_refresh_index += per_page_count
             saved_aweme_count += len(aweme_list)
             await self.batch_get_note_comments(aweme_list)
+
+        utils.logger.info(
+            "[DouYinCrawler.get_homefeed_notes] Douyin homefeed notes crawler finished ..."
+        )

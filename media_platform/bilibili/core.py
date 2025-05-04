@@ -78,6 +78,8 @@ class BilibiliCrawler(AbstractCrawler):
             await self.get_specified_videos(config.BILI_SPECIFIED_ID_LIST)
         elif config.CRAWLER_TYPE == "creator":
             await self.get_creator_videos()
+        elif config.CRAWLER_TYPE == "homefeed":
+            await self.get_homefeed_videos()
         else:
             pass
         utils.logger.info("[BilibiliCrawler.start] Bilibili Crawler finished ...")
@@ -279,3 +281,46 @@ class BilibiliCrawler(AbstractCrawler):
                     f"[BilibiliCrawler.get_video_info_task] have not fund note detail video_id:{bvid}, err: {ex}"
                 )
                 return None
+
+    async def get_homefeed_videos(self):
+        """
+        Get homefeed videos and comments
+        """
+        utils.logger.info(
+            "[BilibiliCrawler.get_homefeed_videos] Begin get bilibili homefeed videos"
+        )
+        per_page_count = 12
+        current_page_idx = 1
+        save_video_count = 0
+        while save_video_count <= config.CRAWLER_MAX_NOTES_COUNT:
+            utils.logger.info(
+                f"[BilibiliCrawler.get_homefeed_videos] Get homefeed videos, current_page_idx: {current_page_idx}, per_page_count: {per_page_count}, save_video_count: {save_video_count}"
+            )
+            homefeed_videos_res = await self.bili_client.get_homefeed_videos(
+                page_count=per_page_count, fresh_idx=current_page_idx
+            )
+            videos_list: List[Dict] = homefeed_videos_res.get("item", [])
+            if not videos_list:
+                utils.logger.info(
+                    f"[BilibiliCrawler.get_homefeed_videos] No more content!"
+                )
+                break
+
+            # goto: 目标类型，av: 视频 ogv: 边栏 live: 直播
+            # show_info: 展示信息: 1: 普通视频 0: 直播
+            filtered_videos_list = [
+                video
+                for video in videos_list
+                if video.get("goto") == "av" and video.get("show_info") == 1
+            ]
+
+            # 复用get_specified_videos方法获取视频详情
+            video_bvids_list = [video.get("bvid") for video in filtered_videos_list]
+            await self.get_specified_videos(video_bvids_list)
+
+            current_page_idx += 1
+            save_video_count += len(filtered_videos_list)
+
+        utils.logger.info(
+            "[BilibiliCrawler.get_homefeed_videos] Bilibili homefeed videos crawler finished ..."
+        )

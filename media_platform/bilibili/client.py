@@ -664,3 +664,33 @@ class BilibiliClient(AbstractApiClient):
             has_more = videos_res.get("page").get("count") > page_num * page_size
             page_num += 1
         return result
+
+    async def get_homefeed_videos(
+        self,
+        fresh_type: int = 4,
+        page_count: int = 12,
+        fresh_idx: int = 1,
+    ) -> Dict:
+        """
+        Get homefeed videos
+
+        Args:
+            fresh_type: 相关性, 默认为 4, 值越大推荐内容越相关
+            page_count: 单页返回的记录条数, 默认为 12
+            fresh_idx: 当前翻页号, 默认为 1
+        Returns:
+
+        """
+        uri = "/x/web-interface/wbi/index/top/feed/rcmd"
+        params = {
+            "web_location": 1430650,
+            "fresh_type": fresh_type,
+            "ps": page_count,
+            "fresh_idx": fresh_idx,
+            "fresh_idx_1h": fresh_idx,
+            "brush": fresh_idx,
+            "feed_version": "v8",
+            "screen": "1265-1294",
+            "uniq_id": "1368300403943",
+        }
+        return await self.get(uri, params)

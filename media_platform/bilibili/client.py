@@ -306,7 +306,7 @@ class BilibiliClient(AbstractApiClient):
     @retry(stop=stop_after_attempt(5), wait=wait_fixed(1))
     async def get_w_webid(self, up_id: str) -> str:
         """
-        获取w_webid
+        获取w_webid， 已废弃！！，不需要获取w_webid了
 
         Args:
             up_id (str): UP主ID
@@ -550,7 +550,6 @@ class BilibiliClient(AbstractApiClient):
             "token": "",
             "platform": "web",
             "web_location": "1550101",
-            "w_webid": self._w_webid,
             # 下面这个几个是浏览器指纹信息
             "dm_img_list": "[]",
             "dm_img_str": "V2ViR0wgMS4wIChPcGVuR0wgRVMgMi4wIENocm9taXVtKQ",

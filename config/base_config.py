@@ -52,6 +52,9 @@ PER_NOTE_MAX_COMMENTS_COUNT = 0
 # 是否开启日志打印输出到文件中
 ENABLE_LOG_FILE = True
 
+# 小红书评论的游标，用于断点续爬，默认空字符串从头开始爬取
+XHS_COMMENTS_START_CURSOR = ""  
+
 # 已废弃⚠️⚠️⚠️指定小红书需要爬虫的笔记ID列表
 # 已废弃⚠️⚠️⚠️ 指定笔记ID笔记列表会因为缺少xsec_token和xsec_source参数导致爬取失败
 # XHS_SPECIFIED_ID_LIST = [

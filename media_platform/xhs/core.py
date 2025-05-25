@@ -351,7 +351,7 @@ class XiaoHongShuCrawler(AbstractCrawler):
         for index, note_id in enumerate(note_list):
             task = asyncio.create_task(
                 self.get_comments_async_task(
-                    note_id, semaphore, xsec_token=xsec_tokens[index]
+                    note_id, semaphore, xsec_token=xsec_tokens[index], cursor=config.XHS_COMMENTS_START_CURSOR
                 ),
                 name=note_id,
             )
@@ -359,7 +359,7 @@ class XiaoHongShuCrawler(AbstractCrawler):
         await asyncio.gather(*task_list)
 
     async def get_comments_async_task(
-        self, note_id: str, semaphore: asyncio.Semaphore, xsec_token: str = ""
+        self, note_id: str, semaphore: asyncio.Semaphore, xsec_token: str = "", cursor: str = ""
     ):
         """
         Get note comments with keyword filtering and quantity limitation
@@ -373,7 +373,7 @@ class XiaoHongShuCrawler(AbstractCrawler):
         """
         async with semaphore:
             utils.logger.info(
-                f"[XiaoHongShuCrawler.get_comments_async_task] Begin get note id comments {note_id}"
+                f"[XiaoHongShuCrawler.get_comments_async_task] Begin get note id comments {note_id}, cursor={cursor}"
             )
             await self.xhs_client.get_note_all_comments(
                 note_id=note_id,

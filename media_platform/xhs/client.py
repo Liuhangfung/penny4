@@ -468,9 +468,10 @@ class XiaoHongShuClient(AbstractApiClient):
     async def get_note_all_comments(
         self,
         note_id: str,
-        crawl_interval: float = 1.0,
+        crawl_interval: float = 2.0,
         callback: Optional[Callable] = None,
         xsec_token: str = "",
+        cursor: str = "",
     ) -> List[Dict]:
         """
         获取指定笔记下的所有一级评论，该方法会一直查找一个帖子下的所有评论信息
@@ -478,13 +479,15 @@ class XiaoHongShuClient(AbstractApiClient):
             note_id: 笔记ID
             crawl_interval: 爬取一次笔记的延迟单位（秒）
             callback: 一次笔记爬取结束后
+            xsec_token: 验证token
+            cursor: 首次评论游标（用于断点续爬）
 
         Returns:
 
         """
         result = []
         comments_has_more = True
-        comments_cursor = ""
+        comments_cursor = cursor  # 首次用外部传入的 cursor
         while comments_has_more:
             comments_res = await self.get_note_comments(
                 note_id, comments_cursor, xsec_token

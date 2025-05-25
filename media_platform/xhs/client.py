@@ -468,7 +468,7 @@ class XiaoHongShuClient(AbstractApiClient):
     async def get_note_all_comments(
         self,
         note_id: str,
-        crawl_interval: float = 2.0,
+        crawl_interval: float = 1.0,
         callback: Optional[Callable] = None,
         xsec_token: str = "",
         cursor: str = "",

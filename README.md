@@ -19,6 +19,10 @@
 > python推荐版本：3.9.6， requirements.txt中的依赖包是基于这个版本的，其他版本可能会有依赖装不上问题。
 > 
 > 相关依赖：nodejs（版本大于16），mysql，redis 在开始之前请确保你的电脑上已经安装了这些依赖。具体方法请自行谷歌或者百度。
+> 
+> 最新安装python依赖@2025-05-27
+> 可以使用 uv 来管理项目依赖，安装好uv之后，直接使用uv run main.py xxx 来替代 python main.py xxx
+
 
 #### 1、新建Pro版本目录（再次提醒相关的依赖需要先安装）
 ```shell

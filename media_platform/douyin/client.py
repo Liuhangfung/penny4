@@ -607,7 +607,7 @@ class DouYinApiClient(AbstractApiClient):
         return await self.get(uri, params)
 
     async def get_user_aweme_posts(
-        self, sec_user_id: str, max_cursor: str = ""
+        self, sec_user_id: str, max_cursor: str = "0"
     ) -> Dict:
         """
         获取指定用户的所有视频
@@ -621,7 +621,7 @@ class DouYinApiClient(AbstractApiClient):
         uri = "/aweme/v1/web/aweme/post/"
         params = {
             "sec_user_id": sec_user_id,
-            "count": 44,
+            "count": 18,
             "max_cursor": max_cursor,
             "locate_query": "false",
             "publish_video_strategy_type": 2,
@@ -647,7 +647,7 @@ class DouYinApiClient(AbstractApiClient):
 
         """
         posts_has_more = 1
-        max_cursor = ""
+        max_cursor = "0"
         result = []
         while posts_has_more == 1 and len(result) < max_count:
             aweme_post_res = await self.get_user_aweme_posts(sec_user_id, max_cursor)

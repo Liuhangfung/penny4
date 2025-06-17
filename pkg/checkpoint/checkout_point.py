@@ -1,8 +1,9 @@
+import asyncio
 import os
 import sys
 from abc import abstractmethod
 import logging
-from typing import Optional
+from typing import Any, Dict, Optional
 import pathlib
 import json
 import time
@@ -16,20 +17,24 @@ sys.path.append(parent_dir)
 
 
 import config
-from model.m_checkpoint import Checkpoint
+from model.m_checkpoint import Checkpoint, CheckpointNote
 from pkg.cache.abs_cache import AbstractCache
 from pkg.cache.cache_factory import CacheFactory
 
 logger = logging.getLogger(__name__)
 
 
-def generate_checkpoint_id() -> str:
+def generate_checkpoint_id(platform: str, mode: str) -> str:
     """生成基于当前日期时间的检查点ID
 
+    Args:
+        platform (str): 平台
+        mode (str): 模式
+
     Returns:
-        str: 格式为YYYYMMDDHHMMSS的时间戳字符串，如20250617183823
+        str: 格式为platform_mode_YYYYMMDDHHMMSS的时间戳字符串，如xhs_search_20250617183823
     """
-    return datetime.now().strftime("%Y%m%d%H%M%S")
+    return f"{platform}_{mode}_{datetime.now().strftime('%Y%m%d%H%M%S')}"
 
 
 class BaseCheckpointRepo:
@@ -47,14 +52,17 @@ class BaseCheckpointRepo:
 
     @abstractmethod
     async def load_checkpoint(
-        self, platform: str, mode: str, id: Optional[str] = None
+        self,
+        platform: Optional[str] = None,
+        mode: Optional[str] = None,
+        checkpoint_id: Optional[str] = None,
     ) -> Optional[Checkpoint]:
         """加载检查点
 
         Args:
-            platform (str): 平台
-            mode (str): 模式
-            id (str): 检查点ID
+            platform (Optional[str]): 平台
+            mode (Optional[str]): 模式
+            checkpoint_id (str): 检查点ID
 
         Returns:
             Optional[Checkpoint]: 加载后的检查点
@@ -62,29 +70,28 @@ class BaseCheckpointRepo:
         pass
 
     @abstractmethod
-    async def delete_checkpoint(self, platform: str, mode: str, id: str):
+    async def delete_checkpoint(self, checkpoint_id: str):
         """删除检查点
 
         Args:
-            platform (str): 平台
-            mode (str): 模式
-            id (str): 检查点ID
+            checkpoint_id (str): 检查点ID
         """
         pass
 
     @abstractmethod
-    async def update_checkpoint(self, checkpoint: Checkpoint):
+    async def update_checkpoint(self, checkpoint_id: str, checkpoint: Checkpoint):
         """更新检查点，如果检查点不存在，则保存检查点
 
         Args:
-            checkpoint (Checkpoint): 检查点
+            checkpoint_id (str): 检查点ID
+            checkpoint (Checkpoint): 检查点内容
         """
         pass
 
 
 class CheckpointJsonFileRepo(BaseCheckpointRepo):
 
-    def __init__(self, cache_dir: str = "data/checkpoint"):
+    def __init__(self, cache_dir: str = "data/checkpoints"):
         self.cache_dir = pathlib.Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
 
@@ -94,31 +101,31 @@ class CheckpointJsonFileRepo(BaseCheckpointRepo):
         Args:
             checkpoint (Checkpoint): 检查点
         """
-        checkpoint_file = (
-            self.cache_dir
-            / f"{checkpoint.platform}_{checkpoint.mode}_{checkpoint.id}.json"
-        )
+        checkpoint_file = self.cache_dir / f"{checkpoint.id}.json"
         async with aiofiles.open(checkpoint_file, "w") as f:
             await f.write(json.dumps(checkpoint.model_dump()))
 
     async def load_checkpoint(
-        self, platform: str, mode: str, id: Optional[str] = None
+        self,
+        platform: Optional[str] = None,
+        mode: Optional[str] = None,
+        checkpoint_id: Optional[str] = None,
     ) -> Optional[Checkpoint]:
         """加载检查点
 
         Args:
-            platform (str): 平台
-            mode (str): 模式
-            id (str): 检查点ID
+            platform (Optional[str]): 平台
+            mode (Optional[str]): 模式
+            checkpoint_id (Optional[str]): 检查点ID
         """
-        if id is None:
+        if checkpoint_id is None:
             # 模糊查询，获取最新的检查点
             checkpoint_files = list(self.cache_dir.glob(f"{platform}_{mode}*.json"))
             if not checkpoint_files:
                 return None
             checkpoint_file = max(checkpoint_files, key=lambda x: x.stat().st_mtime)
         else:
-            checkpoint_file = self.cache_dir / f"{platform}_{mode}_{id}.json"
+            checkpoint_file = self.cache_dir / f"{checkpoint_id}.json"
             # 检查文件是否存在
             if not checkpoint_file.exists():
                 return None
@@ -126,27 +133,26 @@ class CheckpointJsonFileRepo(BaseCheckpointRepo):
         async with aiofiles.open(checkpoint_file, "r") as f:
             return Checkpoint.model_validate_json(await f.read())
 
-    async def delete_checkpoint(self, platform: str, mode: str, id: str):
+    async def delete_checkpoint(self, checkpoint_id: str):
         """删除检查点
 
         Args:
-            platform (str): 平台
-            mode (str): 模式
-            id (str): 检查点ID
+            checkpoint_id (str): 检查点ID
         """
-        checkpoint_file = self.cache_dir / f"{platform}_{mode}_{id}.json"
+        checkpoint_file = self.cache_dir / f"{checkpoint_id}.json"
         if checkpoint_file.exists():
             checkpoint_file.unlink()
 
-    async def update_checkpoint(self, checkpoint: Checkpoint):
+    async def update_checkpoint(self, checkpoint_id: str, checkpoint: Checkpoint):
         """更新检查点，如果检查点不存在，则保存检查点
 
         Args:
-            checkpoint (Checkpoint): 检查点
+            checkpoint_id (str): 检查点ID
+            checkpoint (Checkpoint): 检查点内容
         """
         if (
             await self.load_checkpoint(
-                checkpoint.platform, checkpoint.mode, checkpoint.id
+                checkpoint.platform, checkpoint.mode, checkpoint_id
             )
             is None
         ):
@@ -156,13 +162,7 @@ class CheckpointJsonFileRepo(BaseCheckpointRepo):
 
 
 class CheckpointRedisRepo(BaseCheckpointRepo):
-    """基于Redis的检查点存储库
-
-    使用项目的缓存工厂创建Redis客户端，支持：
-    - 自动过期时间管理
-    - 统一的缓存接口
-    - 序列化/反序列化自动处理
-    """
+    """基于Redis的检查点存储库"""
 
     def __init__(
         self, key_prefix: str = "checkpoint", expire_time: int = 86400 * 7
@@ -173,13 +173,13 @@ class CheckpointRedisRepo(BaseCheckpointRepo):
             cache_type=config.CACHE_TYPE_REDIS
         )
 
-    def _get_checkpoint_key(self, platform: str, mode: str, id: str) -> str:
+    def _get_checkpoint_key(self, id: str) -> str:
         """生成检查点的Redis key"""
-        return f"{self.key_prefix}:{platform}:{mode}:{id}"
+        return f"{self.key_prefix}:{id}"
 
-    def _get_timestamp_key(self, platform: str, mode: str, id: str) -> str:
+    def _get_timestamp_key(self, id: str) -> str:
         """生成时间戳的Redis key，用于记录检查点的创建/更新时间"""
-        return f"{self.key_prefix}:timestamp:{platform}:{mode}:{id}"
+        return f"{self.key_prefix}:timestamp:{id}"
 
     def get_checkpoint_ttl(self, platform: str, mode: str, id: str) -> int:
         """获取检查点的剩余生存时间
@@ -205,14 +205,10 @@ class CheckpointRedisRepo(BaseCheckpointRepo):
             Checkpoint: 保存后的检查点
         """
         if checkpoint.id is None:
-            checkpoint.id = generate_checkpoint_id()
+            checkpoint.id = generate_checkpoint_id(checkpoint.platform, checkpoint.mode)
 
-        checkpoint_key = self._get_checkpoint_key(
-            checkpoint.platform, checkpoint.mode, checkpoint.id
-        )
-        timestamp_key = self._get_timestamp_key(
-            checkpoint.platform, checkpoint.mode, checkpoint.id
-        )
+        checkpoint_key = self._get_checkpoint_key(checkpoint.id)
+        timestamp_key = self._get_timestamp_key(checkpoint.id)
 
         # 使用AbstractCache接口存储检查点数据
         self.redis_cache_client.set(
@@ -226,19 +222,22 @@ class CheckpointRedisRepo(BaseCheckpointRepo):
         return checkpoint
 
     async def load_checkpoint(
-        self, platform: str, mode: str, id: Optional[str] = None
+        self,
+        platform: Optional[str] = None,
+        mode: Optional[str] = None,
+        checkpoint_id: Optional[str] = None,
     ) -> Optional[Checkpoint]:
         """加载检查点
 
         Args:
-            platform (str): 平台
-            mode (str): 模式
-            id (str): 检查点ID，如果为None则获取最新的检查点
+            platform (Optional[str]): 平台
+            mode (Optional[str]): 模式
+            checkpoint_id (Optional[str]): 检查点ID，如果为None则获取最新的检查点
 
         Returns:
             Optional[Checkpoint]: 加载后的检查点
         """
-        if id is None:
+        if checkpoint_id is None:
             # 模糊查询，获取最新的检查点
             pattern = f"{self.key_prefix}:{platform}:{mode}:*"
             keys = self.redis_cache_client.keys(pattern)
@@ -267,7 +266,7 @@ class CheckpointRedisRepo(BaseCheckpointRepo):
             checkpoint_data = self.redis_cache_client.get(latest_key)
         else:
             # 精确查询
-            checkpoint_key = self._get_checkpoint_key(platform, mode, id)
+            checkpoint_key = self._get_checkpoint_key(checkpoint_id)
             checkpoint_data = self.redis_cache_client.get(checkpoint_key)
 
         if checkpoint_data is None:
@@ -276,7 +275,7 @@ class CheckpointRedisRepo(BaseCheckpointRepo):
         # 直接验证数据（AbstractCache已经处理了序列化）
         return Checkpoint.model_validate(checkpoint_data)
 
-    async def delete_checkpoint(self, platform: str, mode: str, id: str):
+    async def delete_checkpoint(self, checkpoint_id: str):
         """删除检查点
 
         Args:
@@ -284,25 +283,23 @@ class CheckpointRedisRepo(BaseCheckpointRepo):
             mode (str): 模式
             id (str): 检查点ID
         """
-        checkpoint_key = self._get_checkpoint_key(platform, mode, id)
-        timestamp_key = self._get_timestamp_key(platform, mode, id)
+        checkpoint_key = self._get_checkpoint_key(checkpoint_id)
+        timestamp_key = self._get_timestamp_key(checkpoint_id)
 
         # 删除检查点数据和时间戳
         self.redis_cache_client.delete(checkpoint_key)
         self.redis_cache_client.delete(timestamp_key)
 
-    async def update_checkpoint(self, checkpoint: Checkpoint):
+    async def update_checkpoint(self, checkpoint_id: str, checkpoint: Checkpoint):
         """更新检查点，如果检查点不存在，则保存检查点
 
         Args:
-            checkpoint (Checkpoint): 检查点
+            checkpoint_id (str): 检查点ID
+            checkpoint (Checkpoint): 检查点内容
         """
-        if checkpoint.id is None:
-            checkpoint.id = generate_checkpoint_id()
-
         # 检查检查点是否存在
         existing_checkpoint = await self.load_checkpoint(
-            checkpoint.platform, checkpoint.mode, checkpoint.id
+            checkpoint.platform, checkpoint.mode, checkpoint_id
         )
 
         if existing_checkpoint is None:
@@ -310,12 +307,8 @@ class CheckpointRedisRepo(BaseCheckpointRepo):
             await self.save_checkpoint(checkpoint)
         else:
             # 检查点存在，更新数据
-            checkpoint_key = self._get_checkpoint_key(
-                checkpoint.platform, checkpoint.mode, checkpoint.id
-            )
-            timestamp_key = self._get_timestamp_key(
-                checkpoint.platform, checkpoint.mode, checkpoint.id
-            )
+            checkpoint_key = self._get_checkpoint_key(checkpoint_id)
+            timestamp_key = self._get_timestamp_key(checkpoint_id)
 
             # 使用AbstractCache接口更新检查点数据
             self.redis_cache_client.set(
@@ -332,6 +325,7 @@ class CheckpointRedisRepo(BaseCheckpointRepo):
 class CheckpointManager:
     def __init__(self, checkpoint_repo: BaseCheckpointRepo):
         self.checkpoint_repo = checkpoint_repo
+        self.crawler_note_lock = asyncio.Lock()
 
     async def save_checkpoint(self, checkpoint: Checkpoint) -> Checkpoint:
         """保存检查点
@@ -339,9 +333,8 @@ class CheckpointManager:
         Args:
             checkpoint (Checkpoint): 检查点
         """
-        logger.info(f"保存检查点: {checkpoint.model_dump_json()}")
         if checkpoint.id is None:
-            checkpoint.id = generate_checkpoint_id()
+            checkpoint.id = generate_checkpoint_id(checkpoint.platform, checkpoint.mode)
 
         await self.checkpoint_repo.save_checkpoint(checkpoint)
         return await self.load_checkpoint(
@@ -354,24 +347,99 @@ class CheckpointManager:
         Args:
             checkpoint (Checkpoint): 检查点
         """
-        logger.info(f"更新检查点: {checkpoint.model_dump_json()}")
-        await self.checkpoint_repo.update_checkpoint(checkpoint)
+        await self.checkpoint_repo.update_checkpoint(checkpoint.id, checkpoint)
         return await self.load_checkpoint(
             checkpoint.platform, checkpoint.mode, checkpoint.id
         )
 
+    async def add_crawled_note_task_to_checkpoint(
+        self,
+        checkpoint_id: str,
+        note_id: str,
+        extra_params_info: Optional[Dict[str, Any]] = None,
+    ) -> bool:
+        """添加爬取帖子任务到检查点
+
+        Args:
+            checkpoint (Checkpoint): 检查点
+            note_id (str): 帖子ID
+        """
+        async with self.crawler_note_lock:
+            checkpoint = await self.load_checkpoint_by_id(checkpoint_id)
+            if checkpoint is None:
+                logger.error(f"检查点不存在: {checkpoint_id}")
+                return False
+
+            if checkpoint.crawled_note_list is None:
+                checkpoint.crawled_note_list = []
+
+            checkpoint.crawled_note_list.append(
+                CheckpointNote(
+                    note_id=note_id,
+                    extra_params_info=extra_params_info,
+                    is_success_crawled=False,
+                    is_success_crawled_comments=False,
+                    current_note_comment_cursor=None,
+                )
+            )
+
+            await self.update_checkpoint(checkpoint)
+            return True
+
+    async def update_crawled_note_task_to_checkpoint(
+        self,
+        checkpoint_id: str,
+        note_id: str,
+        is_success_crawled: bool,
+        is_success_crawled_comments: bool,
+        current_note_comment_cursor: Optional[str] = None,
+    ) -> bool:
+        """更新已爬取的帖子, 需要协程安全
+
+        Args:
+            checkpoint_id (str): 检查点ID
+            note_id (str): 帖子ID
+            is_success_crawled (bool): 是否成功爬取
+            is_success_crawled_comments (bool): 是否成功爬取评论
+            current_note_comment_cursor (Optional[str]): 当前帖子评论游标
+        """
+        async with self.crawler_note_lock:
+            checkpoint = await self.load_checkpoint_by_id(checkpoint_id)
+            if checkpoint is None:
+                logger.error(f"检查点不存在: {checkpoint_id}")
+                return False
+
+            for note in checkpoint.crawled_note_list:
+                if note.note_id == note_id:
+                    note.is_success_crawled = is_success_crawled
+                    note.is_success_crawled_comments = is_success_crawled_comments
+                    note.current_note_comment_cursor = current_note_comment_cursor
+                    break
+
+            await self.update_checkpoint(checkpoint)
+
+    async def load_checkpoint_by_id(self, checkpoint_id: str) -> Optional[Checkpoint]:
+        """加载检查点
+
+        Args:
+            checkpoint_id (str): 检查点ID
+        """
+        return await self.load_checkpoint(checkpoint_id=checkpoint_id)
+
     async def load_checkpoint(
-        self, platform: str, mode: str, id: Optional[str] = None
+        self,
+        platform: Optional[str] = None,
+        mode: Optional[str] = None,
+        checkpoint_id: Optional[str] = None,
     ) -> Optional[Checkpoint]:
         """加载检查点
 
         Args:
-            platform (str): 平台
-            mode (str): 模式
-            id (str): 检查点ID
+            platform (Optional[str]): 平台
+            mode (Optional[str]): 模式
+            checkpoint_id (Optional[str]): 检查点ID
         """
-        logger.info(f"加载检查点: {platform}, {mode}, {id}")
-        return await self.checkpoint_repo.load_checkpoint(platform, mode, id)
+        return await self.checkpoint_repo.load_checkpoint(platform, mode, checkpoint_id)
 
     async def delete_checkpoint(self, platform: str, mode: str, id: str):
         """删除检查点
@@ -381,5 +449,4 @@ class CheckpointManager:
             mode (str): 模式
             id (str): 检查点ID
         """
-        logger.info(f"删除检查点: {platform}, {mode}, {id}")
         return await self.checkpoint_repo.delete_checkpoint(platform, mode, id)

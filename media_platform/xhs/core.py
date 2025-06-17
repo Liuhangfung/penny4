@@ -14,11 +14,16 @@ import random
 from asyncio import Task
 from typing import Dict, List, Optional
 
+from tenacity import RetryError
+
 import config
 import constant
 from base.base_crawler import AbstractCrawler
+from model.m_checkpoint import Checkpoint
 from model.m_xiaohongshu import CreatorUrlInfo, NoteUrlInfo
 from pkg.account_pool.pool import AccountWithIpPoolManager
+from pkg.checkpoint import create_checkpoint_manager
+from pkg.checkpoint.checkout_point import CheckpointManager
 from pkg.proxy.proxy_ip_pool import ProxyIpPool, create_ip_pool
 from pkg.tools import utils
 from repo.platform_save_data import xhs as xhs_store
@@ -33,6 +38,13 @@ from .help import parse_creator_info_from_creator_url, parse_note_info_from_note
 class XiaoHongShuCrawler(AbstractCrawler):
     def __init__(self) -> None:
         self.xhs_client = XiaoHongShuClient()
+        self.checkpoint_manager: CheckpointManager = create_checkpoint_manager()
+
+        # 限制并发数
+        self.crawler_note_task_semaphore = asyncio.Semaphore(config.MAX_CONCURRENCY_NUM)
+        self.crawler_note_comment_semaphore = asyncio.Semaphore(
+            config.MAX_CONCURRENCY_NUM
+        )
 
     async def async_initialize(self):
         """
@@ -103,8 +115,19 @@ class XiaoHongShuCrawler(AbstractCrawler):
         if config.CRAWLER_MAX_NOTES_COUNT < xhs_limit_count:
             config.CRAWLER_MAX_NOTES_COUNT = xhs_limit_count
         start_page = config.START_PAGE
+
+        checkpoint = Checkpoint(
+            platform=constant.XHS_PLATFORM_NAME,
+            mode="search",
+            current_page=start_page,
+        )
         for keyword in config.KEYWORDS.split(","):
             source_keyword_var.set(keyword)
+
+            # 按关键字保存检查点，后面的业务行为都是基于这个检查点来更新page信息，所以需要先保存检查点
+            checkpoint.current_search_keyword = keyword
+            await self.checkpoint_manager.save_checkpoint(checkpoint)
+
             utils.logger.info(
                 f"[XiaoHongShuCrawler.search] Current search keyword: {keyword}"
             )
@@ -137,27 +160,45 @@ class XiaoHongShuCrawler(AbstractCrawler):
                     if not notes_res or not notes_res.get("has_more", False):
                         utils.logger.info("No more content!")
                         break
-                    semaphore = asyncio.Semaphore(config.MAX_CONCURRENCY_NUM)
-                    task_list = [
-                        self.get_note_detail_async_task(
+
+                    task_list = []
+                    for post_item in notes_res.get("items", {}):
+                        if post_item.get("model_type") in ("rec_query", "hot_query"):
+                            continue
+
+                        # 添加爬取帖子任务到检查点， 这个时候还没有爬取帖子，所以is_success_crawled为False
+                        # 后续 task_list 被asyncio.gather 并发调度之后，根据爬取note_id来更新is_success_crawled为True
+                        await self.checkpoint_manager.add_crawled_note_task_to_checkpoint(
+                            checkpoint_id=checkpoint.id,
                             note_id=post_item.get("id"),
-                            xsec_source=post_item.get("xsec_source"),
-                            xsec_token=post_item.get("xsec_token"),
-                            semaphore=semaphore,
+                            extra_params_info={
+                                "xsec_source": post_item.get("xsec_source"),
+                                "xsec_token": post_item.get("xsec_token"),
+                            },
                         )
-                        for post_item in notes_res.get("items", {})
-                        if post_item.get("model_type") not in ("rec_query", "hot_query")
-                    ]
+
+                        task = asyncio.create_task(
+                            self.get_note_detail_async_task(
+                                note_id=post_item.get("id"),
+                                xsec_source=post_item.get("xsec_source"),
+                                xsec_token=post_item.get("xsec_token"),
+                                checkpoint_id=checkpoint.id,
+                            )
+                        )
+                        task_list.append(task)
+
                     note_details = await asyncio.gather(*task_list)
                     for note_detail in note_details:
                         if note_detail:
                             await xhs_store.update_xhs_note(note_detail)
                             note_id_list.append(note_detail.get("note_id", ""))
                             xsec_tokens.append(note_detail.get("xsec_token", ""))
+
                     page += 1
                     utils.logger.info(
                         f"[XiaoHongShuCrawler.search] Note details: {note_details}"
                     )
+
                     await self.batch_get_note_comments(note_id_list, xsec_tokens)
 
                 except Exception as ex:
@@ -176,6 +217,18 @@ class XiaoHongShuCrawler(AbstractCrawler):
                         "------------------------------------------记录当前爬取的关键词和页码---------------------------------------------------"
                     )
                     return
+
+                finally:
+                    lastest_checkpoint = (
+                        await self.checkpoint_manager.load_checkpoint_by_id(
+                            checkpoint.id
+                        )
+                    )
+                    if lastest_checkpoint:
+                        lastest_checkpoint.current_page = page
+                        await self.checkpoint_manager.update_checkpoint(
+                            lastest_checkpoint
+                        )
 
     async def get_creators_and_notes(self) -> None:
         """
@@ -229,13 +282,11 @@ class XiaoHongShuCrawler(AbstractCrawler):
         Returns:
 
         """
-        semaphore = asyncio.Semaphore(config.MAX_CONCURRENCY_NUM)
         task_list = [
             self.get_note_detail_async_task(
                 note_id=post_item.get("note_id", ""),
                 xsec_source=post_item.get("xsec_source", ""),
                 xsec_token=post_item.get("xsec_token", ""),
-                semaphore=semaphore,
             )
             for post_item in note_list
         ]
@@ -262,7 +313,6 @@ class XiaoHongShuCrawler(AbstractCrawler):
                 note_id=note_url_info.note_id,
                 xsec_source=note_url_info.xsec_source,
                 xsec_token=note_url_info.xsec_token,
-                semaphore=asyncio.Semaphore(config.MAX_CONCURRENCY_NUM),
             )
             get_note_detail_task_list.append(crawler_task)
 
@@ -281,7 +331,7 @@ class XiaoHongShuCrawler(AbstractCrawler):
         note_id: str,
         xsec_source: str,
         xsec_token: str,
-        semaphore: asyncio.Semaphore,
+        checkpoint_id: str,
     ) -> Optional[Dict]:
         """
         Get note detail from html or api
@@ -290,13 +340,12 @@ class XiaoHongShuCrawler(AbstractCrawler):
             note_id: note id
             xsec_source: xsec source
             xsec_token: xsec token
-            semaphore: semaphore
-
+            checkpoint_id: checkpoint id
         Returns:
             note detail
         """
-        note_detail_from_html, note_detail_from_api = None, None
-        async with semaphore:
+        note_detail, note_detail_from_html, note_detail_from_api = None, None, None
+        async with self.crawler_note_task_semaphore:
             try:
                 note_detail_from_html: Optional[Dict] = (
                     await self.xhs_client.get_note_by_id_from_html(
@@ -315,16 +364,34 @@ class XiaoHongShuCrawler(AbstractCrawler):
                         {"xsec_token": xsec_token, "xsec_source": xsec_source}
                     )
                     return note_detail
+
             except DataFetchError as ex:
                 utils.logger.error(
                     f"[XiaoHongShuCrawler.get_note_detail_async_task] Get note detail error: {ex}"
                 )
                 return None
+
             except KeyError as ex:
                 utils.logger.error(
                     f"[XiaoHongShuCrawler.get_note_detail_async_task] have not fund note detail note_id:{note_id}, err: {ex}"
                 )
                 return None
+
+            except RetryError as ex:
+                utils.logger.error(
+                    f"[XiaoHongShuCrawler.get_note_detail_async_task] Get note detail error: {ex}"
+                )
+                return None
+
+            finally:
+                is_success_crawled = note_detail is not None
+                await self.checkpoint_manager.update_crawled_note_task_to_checkpoint(
+                    checkpoint_id=checkpoint_id,
+                    note_id=note_id,
+                    is_success_crawled=is_success_crawled,
+                    is_success_crawled_comments=False,
+                    current_note_comment_cursor=None,
+                )
 
     async def batch_get_note_comments(
         self, note_list: List[str], xsec_tokens: List[str] = []
@@ -346,12 +413,13 @@ class XiaoHongShuCrawler(AbstractCrawler):
         utils.logger.info(
             f"[XiaoHongShuCrawler.batch_get_note_comments] Begin batch get note comments, note list: {note_list}"
         )
-        semaphore = asyncio.Semaphore(config.MAX_CONCURRENCY_NUM)
         task_list: List[Task] = []
         for index, note_id in enumerate(note_list):
             task = asyncio.create_task(
                 self.get_comments_async_task(
-                    note_id, semaphore, xsec_token=xsec_tokens[index], cursor=config.XHS_COMMENTS_START_CURSOR
+                    note_id,
+                    xsec_token=xsec_tokens[index],
+                    cursor=config.XHS_COMMENTS_START_CURSOR,
                 ),
                 name=note_id,
             )
@@ -359,19 +427,21 @@ class XiaoHongShuCrawler(AbstractCrawler):
         await asyncio.gather(*task_list)
 
     async def get_comments_async_task(
-        self, note_id: str, semaphore: asyncio.Semaphore, xsec_token: str = "", cursor: str = ""
+        self,
+        note_id: str,
+        xsec_token: str = "",
+        cursor: str = "",
     ):
         """
         Get note comments with keyword filtering and quantity limitation
         Args:
             note_id:
-            semaphore:
             xsec_token:
 
         Returns:
 
         """
-        async with semaphore:
+        async with self.crawler_note_comment_semaphore:
             utils.logger.info(
                 f"[XiaoHongShuCrawler.get_comments_async_task] Begin get note id comments {note_id}, cursor={cursor}"
             )
@@ -418,15 +488,12 @@ class XiaoHongShuCrawler(AbstractCrawler):
             items: List[Dict] = homefeed_notes_res.get("items", [])
             current_cursor = cursor_score
             note_index += note_num
-
             note_id_list, xsec_tokens = [], []
-            semaphore = asyncio.Semaphore(config.MAX_CONCURRENCY_NUM)
             task_list = [
                 self.get_note_detail_async_task(
                     note_id=post_item.get("id"),
                     xsec_source="pc_feed",
                     xsec_token=post_item.get("xsec_token", ""),
-                    semaphore=semaphore,
                 )
                 for post_item in items
                 if post_item.get("model_type") not in ("rec_query", "hot_query")

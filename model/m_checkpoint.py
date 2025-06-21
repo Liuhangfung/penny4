@@ -11,7 +11,7 @@ class CheckpointNote(BaseModel):
     is_success_crawled: bool = Field(False, description="是否成功爬取")
     is_success_crawled_comments: bool = Field(False, description="是否成功爬取评论")
     current_note_comment_cursor: Optional[str] = Field(
-        None, description="当前帖子评论游标"
+        "", description="当前帖子评论游标"
     )
 
 

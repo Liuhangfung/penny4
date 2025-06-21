@@ -118,7 +118,7 @@ class CheckpointJsonFileRepo(BaseCheckpointRepo):
             mode (Optional[str]): 模式
             checkpoint_id (Optional[str]): 检查点ID
         """
-        if checkpoint_id is None:
+        if not checkpoint_id:
             # 模糊查询，获取最新的检查点
             checkpoint_files = list(self.cache_dir.glob(f"{platform}_{mode}*.json"))
             if not checkpoint_files:
@@ -237,7 +237,7 @@ class CheckpointRedisRepo(BaseCheckpointRepo):
         Returns:
             Optional[Checkpoint]: 加载后的检查点
         """
-        if checkpoint_id is None:
+        if not checkpoint_id:
             # 模糊查询，获取最新的检查点
             pattern = f"{self.key_prefix}:{platform}:{mode}:*"
             keys = self.redis_cache_client.keys(pattern)
@@ -432,7 +432,7 @@ class CheckpointManager:
         mode: Optional[str] = None,
         checkpoint_id: Optional[str] = None,
     ) -> Optional[Checkpoint]:
-        """加载检查点
+        """加载检查点, 如果checkpoint_id为空，则加载最新的检查点
 
         Args:
             platform (Optional[str]): 平台
@@ -450,3 +450,91 @@ class CheckpointManager:
             id (str): 检查点ID
         """
         return await self.checkpoint_repo.delete_checkpoint(platform, mode, id)
+
+    async def check_note_is_crawled_in_checkpoint(
+        self, checkpoint_id: str, note_id: str
+    ) -> bool:
+        """检查点中是否存在该帖子且已爬取
+
+        Args:
+            checkpoint_id (str): 检查点ID
+            note_id (str): 帖子ID
+        """
+        checkpoint = await self.load_checkpoint_by_id(checkpoint_id)
+        if checkpoint is None:
+            return False
+
+        if checkpoint.crawled_note_list is None:
+            return False
+
+        for note in checkpoint.crawled_note_list:
+            if note.note_id == note_id:
+                return note.is_success_crawled
+
+        return False
+
+    async def check_note_comments_is_crawled_in_checkpoint(
+        self, checkpoint_id: str, note_id: str
+    ) -> bool:
+        """检查点中是否存在该帖子且已爬取评论
+
+        Args:
+            checkpoint_id (str): 检查点ID
+            note_id (str): 帖子ID
+        """
+        checkpoint = await self.load_checkpoint_by_id(checkpoint_id)
+        if checkpoint is None:
+            return False
+
+        if checkpoint.crawled_note_list is None:
+            return False
+
+        for note in checkpoint.crawled_note_list:
+            if note.note_id == note_id:
+                return note.is_success_crawled_comments
+
+        return False
+
+    async def get_note_comment_cursor(
+        self, checkpoint_id: str, note_id: str
+    ) -> Optional[str]:
+        """获取帖子评论游标"""
+        checkpoint = await self.load_checkpoint_by_id(checkpoint_id)
+        if checkpoint is None:
+            return None
+
+        for note in checkpoint.crawled_note_list:
+            if note.note_id == note_id:
+                return note.current_note_comment_cursor
+
+        return None
+
+    async def update_note_comment_cursor(
+        self,
+        checkpoint_id: str,
+        note_id: str,
+        comment_cursor: str,
+        is_success_crawled_comments: bool = False,
+    ) -> bool:
+        """更新帖子评论游标
+
+        Args:
+            checkpoint_id (str): 检查点ID
+            note_id (str): 帖子ID
+            comment_cursor (str): 评论游标
+            is_success_crawled_comments (bool): 是否成功爬取评论
+        """
+        async with self.crawler_note_lock:
+            checkpoint = await self.load_checkpoint_by_id(checkpoint_id)
+            if checkpoint is None:
+                logger.error(f"检查点不存在: {checkpoint_id}")
+                return False
+
+            for note in checkpoint.crawled_note_list:
+                if note.note_id == note_id:
+                    note.current_note_comment_cursor = comment_cursor
+                    note.is_success_crawled_comments = is_success_crawled_comments
+                    break
+
+            await self.update_checkpoint(checkpoint)
+            return True

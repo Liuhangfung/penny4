@@ -145,12 +145,13 @@ class XiaoHongShuClient(AbstractApiClient):
             cookies=self._cookies,
         )
         xhs_sign_resp = await self._sign_client.xiaohongshu_sign(sign_req)
+        xmns = xhs_sign_resp.data.x_mns
         headers = {
             "X-S": xhs_sign_resp.data.x_s,
             "X-T": xhs_sign_resp.data.x_t,
             "x-S-Common": xhs_sign_resp.data.x_s_common,
             "X-B3-Traceid": xhs_sign_resp.data.x_b3_traceid,
-            "X-Mns": xhs_sign_resp.data.x_mns,
+            "X-Mns": xmns,
         }
         headers.update(self.headers)
         return headers
@@ -176,7 +177,7 @@ class XiaoHongShuClient(AbstractApiClient):
                 await self.account_with_ip_pool.proxy_ip_pool.get_proxy()
             )
 
-    @retry(stop=stop_after_attempt(5), wait=wait_random(2, 10))
+    # @retry(stop=stop_after_attempt(5), wait=wait_random(2, 10))
     async def request(self, method, url, **kwargs) -> Union[Response, Dict]:
         """
         封装httpx的公共请求方法，对请求响应做一些处理
@@ -206,8 +207,8 @@ class XiaoHongShuClient(AbstractApiClient):
 
         if response.status_code == 471 or response.status_code == 461:
             # someday someone maybe will bypass captcha
-            verify_type = response.headers["Verifytype"]
-            verify_uuid = response.headers["Verifyuuid"]
+            verify_type = response.headers.get("Verifytype", "")
+            verify_uuid = response.headers.get("Verifyuuid", "")
             raise Exception(
                 f"出现验证码，请求失败，Verifytype: {verify_type}，Verifyuuid: {verify_uuid}, Response: {response}"
             )
@@ -376,9 +377,6 @@ class XiaoHongShuClient(AbstractApiClient):
             "sort": sort.value,
             "note_type": note_type.value,
         }
-        # debug
-        if page > 1:
-            raise Exception("debug for checkpoint crawler")
 
         return await self.post(uri, data)
 

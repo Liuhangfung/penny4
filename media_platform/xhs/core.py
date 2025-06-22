@@ -16,8 +16,8 @@ import config
 import constant
 from base.base_crawler import AbstractCrawler
 from pkg.account_pool.pool import AccountWithIpPoolManager
-from pkg.checkpoint import create_checkpoint_manager
-from pkg.checkpoint.checkout_point import CheckpointManager
+from repo.checkpoint import create_checkpoint_manager
+from repo.checkpoint.checkpoint_store import CheckpointRepoManager
 from pkg.proxy.proxy_ip_pool import ProxyIpPool, create_ip_pool
 from pkg.tools import utils
 from var import crawler_type_var
@@ -30,7 +30,7 @@ from .processors import NoteProcessor, CommentProcessor
 class XiaoHongShuCrawler(AbstractCrawler):
     def __init__(self) -> None:
         self.xhs_client = XiaoHongShuClient()
-        self.checkpoint_manager: CheckpointManager = create_checkpoint_manager()
+        self.checkpoint_manager: CheckpointRepoManager = create_checkpoint_manager()
 
         # 限制并发数
         self.crawler_note_task_semaphore = asyncio.Semaphore(config.MAX_CONCURRENCY_NUM)

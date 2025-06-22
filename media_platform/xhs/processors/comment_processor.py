@@ -20,7 +20,7 @@ from repo.platform_save_data import xhs as xhs_store
 
 if TYPE_CHECKING:
     from ..client import XiaoHongShuClient
-    from pkg.checkpoint.checkout_point import CheckpointManager
+    from repo.checkpoint.checkpoint_store import CheckpointRepoManager
 
 
 class CommentProcessor:
@@ -29,7 +29,7 @@ class CommentProcessor:
     def __init__(
         self,
         xhs_client: "XiaoHongShuClient",
-        checkpoint_manager: "CheckpointManager",
+        checkpoint_manager: "CheckpointRepoManager",
         crawler_note_comment_semaphore: asyncio.Semaphore
     ):
         """

@@ -32,6 +32,7 @@ class Checkpoint(BaseModel):
     # 搜索模式相关字段
     current_search_keyword: Optional[str] = Field(None, description="当前搜索关键词")
     current_search_page: Optional[int] = Field(None, description="当前搜索页码")
+    current_search_id: Optional[str] = Field(None, description="当前搜索ID")
 
     # 创作者模式相关字段
     current_creator_id: Optional[str] = Field(None, description="当前创作者ID")

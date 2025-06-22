@@ -12,34 +12,34 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ..client import XiaoHongShuClient
+    from ..client import DouYinApiClient
     from repo.checkpoint.checkpoint_store import CheckpointRepoManager
-    from ..processors.note_processor import NoteProcessor
+    from ..processors.aweme_processor import AwemeProcessor
     from ..processors.comment_processor import CommentProcessor
 
 
 class BaseHandler(ABC):
-    """Base handler class for all XiaoHongShu crawler handlers"""
+    """Base handler class for all Douyin crawler handlers"""
     
     def __init__(
         self,
-        xhs_client: "XiaoHongShuClient",
+        dy_client: "DouYinApiClient",
         checkpoint_manager: "CheckpointRepoManager",
-        note_processor: "NoteProcessor",
+        aweme_processor: "AwemeProcessor",
         comment_processor: "CommentProcessor"
     ):
         """
         Initialize base handler with injected dependencies
         
         Args:
-            xhs_client: XiaoHongShu API client
+            dy_client: Douyin API client
             checkpoint_manager: Checkpoint manager for resume functionality
-            note_processor: Note processing component
+            aweme_processor: Aweme processing component
             comment_processor: Comment processing component
         """
-        self.xhs_client = xhs_client
+        self.dy_client = dy_client
         self.checkpoint_manager = checkpoint_manager
-        self.note_processor = note_processor
+        self.aweme_processor = aweme_processor
         self.comment_processor = comment_processor
     
     @abstractmethod

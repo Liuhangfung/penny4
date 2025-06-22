@@ -19,7 +19,7 @@ from .base_handler import BaseHandler
 
 if TYPE_CHECKING:
     from ..client import XiaoHongShuClient
-    from pkg.checkpoint.checkout_point import CheckpointManager
+    from repo.checkpoint.checkpoint_store import CheckpointRepoManager
     from ..processors.note_processor import NoteProcessor
     from ..processors.comment_processor import CommentProcessor
 
@@ -30,7 +30,7 @@ class HomefeedHandler(BaseHandler):
     def __init__(
             self,
             xhs_client: "XiaoHongShuClient",
-            checkpoint_manager: "CheckpointManager",
+            checkpoint_manager: "CheckpointRepoManager",
             note_processor: "NoteProcessor",
             comment_processor: "CommentProcessor"
     ):

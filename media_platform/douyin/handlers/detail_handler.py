@@ -6,44 +6,43 @@
 # 5. 不得用于任何非法或不当的用途。
 #   
 # 详细许可条款请参阅项目根目录下的LICENSE文件。  
-# 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。
-from typing import List, TYPE_CHECKING, Dict
+# 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。  
+
+from typing import List, TYPE_CHECKING
 
 import config
 import constant
 from model.m_checkpoint import Checkpoint
-from model.m_xiaohongshu import NoteUrlInfo
 from pkg.tools import utils
-from ..help import parse_note_info_from_note_url
 from .base_handler import BaseHandler
 
 if TYPE_CHECKING:
-    from ..client import XiaoHongShuClient
+    from ..client import DouYinApiClient
     from repo.checkpoint.checkpoint_store import CheckpointRepoManager
-    from ..processors.note_processor import NoteProcessor
+    from ..processors.aweme_processor import AwemeProcessor
     from ..processors.comment_processor import CommentProcessor
 
 
 class DetailHandler(BaseHandler):
-    """Handles detail-based crawling operations for specified notes"""
+    """Handles detail-based crawling operations for specified awemes"""
     
     def __init__(
         self,
-        xhs_client: "XiaoHongShuClient",
+        dy_client: "DouYinApiClient",
         checkpoint_manager: "CheckpointRepoManager",
-        note_processor: "NoteProcessor",
+        aweme_processor: "AwemeProcessor",
         comment_processor: "CommentProcessor"
     ):
         """
         Initialize detail handler
         
         Args:
-            xhs_client: XiaoHongShu API client
+            dy_client: Douyin API client
             checkpoint_manager: Checkpoint manager for resume functionality
-            note_processor: Note processing component
+            aweme_processor: Aweme processing component
             comment_processor: Comment processing component
         """
-        super().__init__(xhs_client, checkpoint_manager, note_processor, comment_processor)
+        super().__init__(dy_client, checkpoint_manager, aweme_processor, comment_processor)
     
     async def handle(self) -> None:
         """
@@ -52,48 +51,37 @@ class DetailHandler(BaseHandler):
         Returns:
             None
         """
-        await self.get_specified_notes()
+        await self.get_specified_awemes()
     
-    async def get_specified_notes(self):
+    async def get_specified_awemes(self):
         """
         Get the information and comments of the specified post
-        must be specified note_id, xsec_source, xsec_token
         Returns:
             None
         """
         utils.logger.info(
-            "[DetailHandler.get_specified_notes] Begin get xiaohongshu specified notes"
+            "[DetailHandler.get_specified_awemes] Begin get douyin specified awemes"
         )
 
-        checkpoint = Checkpoint(platform=constant.XHS_PLATFORM_NAME, mode="detail")
+        checkpoint = Checkpoint(platform=constant.DOUYIN_PLATFORM_NAME, mode="detail")
 
         # 如果开启了断点续爬，则加载检查点
         if config.ENABLE_CHECKPOINT:
             lastest_checkpoint = await self.checkpoint_manager.load_checkpoint(
-                platform=constant.XHS_PLATFORM_NAME,
+                platform=constant.DOUYIN_PLATFORM_NAME,
                 mode="detail",
                 checkpoint_id=config.SPECIFIED_CHECKPOINT_ID,
             )
             if lastest_checkpoint:
                 checkpoint = lastest_checkpoint
                 utils.logger.info(
-                    f"[DetailHandler.get_specified_notes] Load lastest checkpoint: {lastest_checkpoint.id}"
+                    f"[DetailHandler.get_specified_awemes] Load lastest checkpoint: {lastest_checkpoint.id}"
                 )
         await self.checkpoint_manager.save_checkpoint(checkpoint)
 
-        # 从配置文件中解析指定帖子信息
-        note_list: List[Dict] = []
-        for full_note_url in config.XHS_SPECIFIED_NOTE_URL_LIST:
-            note_url_info: NoteUrlInfo = parse_note_info_from_note_url(full_note_url)
-            note_list.append(
-                {
-                    "note_id": note_url_info.note_id,
-                    "xsec_token": note_url_info.xsec_token,
-                    "xsec_source": note_url_info.xsec_source,
-                }
-            )
-
-        note_ids, xsec_tokens = await self.note_processor.batch_get_note_list(note_list, checkpoint_id=checkpoint.id)
-        await self.comment_processor.batch_get_note_comments(
-            note_ids, xsec_tokens, checkpoint_id=checkpoint.id
+        processed_aweme_ids = await self.aweme_processor.batch_get_aweme_list_from_ids(
+            config.DY_SPECIFIED_ID_LIST, checkpoint_id=checkpoint.id
+        )
+        await self.comment_processor.batch_get_aweme_comments(
+            processed_aweme_ids, checkpoint_id=checkpoint.id
         )

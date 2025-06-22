@@ -6,45 +6,47 @@
 # 5. 不得用于任何非法或不当的用途。
 #   
 # 详细许可条款请参阅项目根目录下的LICENSE文件。  
-# 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。
-from typing import List, TYPE_CHECKING
+# 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。  
+
+from typing import Dict, List, TYPE_CHECKING
 
 import config
 import constant
 from model.m_checkpoint import Checkpoint
 from pkg.tools import utils
+from repo.platform_save_data import douyin as douyin_store
 from var import source_keyword_var
-from ..field import SearchSortType
+from ..field import PublishTimeType
 from .base_handler import BaseHandler
 
 if TYPE_CHECKING:
-    from ..client import XiaoHongShuClient
+    from ..client import DouYinApiClient
     from repo.checkpoint.checkpoint_store import CheckpointRepoManager
-    from ..processors.note_processor import NoteProcessor
+    from ..processors.aweme_processor import AwemeProcessor
     from ..processors.comment_processor import CommentProcessor
 
 
 class SearchHandler(BaseHandler):
     """Handles search-based crawling operations"""
-
+    
     def __init__(
-            self,
-            xhs_client: "XiaoHongShuClient",
-            checkpoint_manager: "CheckpointRepoManager",
-            note_processor: "NoteProcessor",
-            comment_processor: "CommentProcessor"
+        self,
+        dy_client: "DouYinApiClient",
+        checkpoint_manager: "CheckpointRepoManager",
+        aweme_processor: "AwemeProcessor",
+        comment_processor: "CommentProcessor"
     ):
         """
         Initialize search handler
         
         Args:
-            xhs_client: XiaoHongShu API client
+            dy_client: Douyin API client
             checkpoint_manager: Checkpoint manager for resume functionality
-            note_processor: Note processing component
+            aweme_processor: Aweme processing component
             comment_processor: Comment processing component
         """
-        super().__init__(xhs_client, checkpoint_manager, note_processor, comment_processor)
-
+        super().__init__(dy_client, checkpoint_manager, aweme_processor, comment_processor)
+    
     async def handle(self) -> None:
         """
         Handle search-based crawling
@@ -53,7 +55,7 @@ class SearchHandler(BaseHandler):
             None
         """
         await self.search()
-
+    
     @staticmethod
     def _get_search_keyword_list() -> List[str]:
         """
@@ -82,22 +84,24 @@ class SearchHandler(BaseHandler):
 
     async def search(self) -> None:
         """
-        Search for notes and retrieve their comment information.
+        Search for video list and retrieve their comment information.
         Returns:
             None
         """
-        utils.logger.info(
-            "[SearchHandler.search] Begin search xiaohongshu keywords"
-        )
+        utils.logger.info("[SearchHandler.search] Begin search douyin keywords")
+        dy_limit_count = 20  # douyin limit page fixed value
+        if config.CRAWLER_MAX_NOTES_COUNT < dy_limit_count:
+            config.CRAWLER_MAX_NOTES_COUNT = dy_limit_count
+        
         keyword_list = self._get_search_keyword_list()
         checkpoint = Checkpoint(
-            platform=constant.XHS_PLATFORM_NAME, mode="search", current_search_page=1
+            platform=constant.DOUYIN_PLATFORM_NAME, mode="search", current_search_page=config.START_PAGE
         )
 
         # 如果开启了断点续爬，则加载检查点
         if config.ENABLE_CHECKPOINT:
             lastest_checkpoint = await self.checkpoint_manager.load_checkpoint(
-                platform=constant.XHS_PLATFORM_NAME,
+                platform=constant.DOUYIN_PLATFORM_NAME,
                 mode="search",
                 checkpoint_id=config.SPECIFIED_CHECKPOINT_ID,
             )
@@ -123,52 +127,79 @@ class SearchHandler(BaseHandler):
             checkpoint.current_search_keyword = keyword
             await self.checkpoint_manager.save_checkpoint(checkpoint)
 
-            utils.logger.info(
-                f"[SearchHandler.search] Current search keyword: {keyword}"
-            )
+            utils.logger.info(f"[SearchHandler.search] Current keyword: {keyword}")
             page = checkpoint.current_search_page
-            saved_note_count = (page - 1) * 20
-            while saved_note_count <= config.CRAWLER_MAX_NOTES_COUNT:
+            dy_search_id = checkpoint.current_search_id or ""
+            saved_aweme_count = (page - config.START_PAGE) * dy_limit_count
+            
+            while saved_aweme_count <= config.CRAWLER_MAX_NOTES_COUNT:
                 try:
                     utils.logger.info(
-                        f"[SearchHandler.search] search xhs keyword: {keyword}, page: {page}"
+                        f"[SearchHandler.search] search douyin keyword: {keyword}, page: {page}"
                     )
-                    notes_res = await self.xhs_client.get_note_by_keyword(
+                    posts_res = await self.dy_client.search_info_by_keyword(
                         keyword=keyword,
-                        page=page,
-                        sort=(
-                            SearchSortType(config.SORT_TYPE)
-                            if config.SORT_TYPE != ""
-                            else SearchSortType.GENERAL
-                        ),
+                        offset=(page - 1) * dy_limit_count,
+                        publish_time=PublishTimeType(config.PUBLISH_TIME_TYPE),
+                        search_id=dy_search_id,
                     )
-                    utils.logger.info(
-                        f"[SearchHandler.search] Search notes res count:{len(notes_res.get('items', []))}"
-                    )
-                    if not notes_res or not notes_res.get("has_more", False):
-                        utils.logger.info("No more content!")
+
+                    if "data" not in posts_res:
+                        utils.logger.error(
+                            f"[SearchHandler.search] search douyin keyword: {keyword} failed，账号也许被风控了。"
+                        )
                         break
-
-                    # 过滤掉推荐和热门的查询
-                    note_list = []
-                    for post_item in notes_res.get("items", []):
-                        if post_item.get("model_type") in ("rec_query", "hot_query"):
+                    
+                    dy_search_id = posts_res.get("extra", {}).get("logid", "")
+                    aweme_id_list: List[str] = []
+                    
+                    for post_item in posts_res.get("data"):
+                        try:
+                            aweme_info: Dict = (
+                                post_item.get("aweme_info")
+                                or post_item.get("aweme_mix_info", {}).get("mix_items")[0]
+                            )
+                        except TypeError:
                             continue
-                        note_list.append(post_item)
+                        
+                        aweme_id = aweme_info.get("aweme_id", "")
+                        if not aweme_id:
+                            continue
+                            
+                        aweme_id_list.append(aweme_id)
+                        
+                        # 检查是否已经爬取过
+                        if await self.checkpoint_manager.check_note_is_crawled_in_checkpoint(
+                                checkpoint_id=checkpoint.id, note_id=aweme_id
+                        ):
+                            utils.logger.info(
+                                f"[SearchHandler.search] Aweme {aweme_id} is already crawled, skip"
+                            )
+                            saved_aweme_count += 1
+                            continue
 
-                    note_id_list, xsec_tokens = await self.note_processor.batch_get_note_list(
-                        note_list=note_list,
-                        checkpoint_id=checkpoint.id
+                        await self.checkpoint_manager.add_note_to_checkpoint(
+                            checkpoint_id=checkpoint.id,
+                            note_id=aweme_id,
+                            extra_params_info={},
+                            is_success_crawled=True,
+                        )
+                        
+                        await douyin_store.update_douyin_aweme(aweme_item=aweme_info)
+                        saved_aweme_count += 1
+
+                    utils.logger.info(
+                        f"[SearchHandler.search] keyword:{keyword}, aweme_id_list:{aweme_id_list}"
                     )
-                    await self.comment_processor.batch_get_note_comments(
-                        note_id_list, xsec_tokens, checkpoint_id=checkpoint.id
+                    await self.comment_processor.batch_get_aweme_comments(
+                        aweme_id_list, checkpoint_id=checkpoint.id
                     )
 
                     page += 1
 
                 except Exception as ex:
                     utils.logger.error(
-                        f"[SearchHandler.search] Search notes error: {ex}"
+                        f"[SearchHandler.search] Search videos error: {ex}"
                     )
                     # 发生异常了，则打印当前爬取的关键词和页码，用于后续继续爬取
                     utils.logger.info(
@@ -195,6 +226,7 @@ class SearchHandler(BaseHandler):
                     )
                     if lastest_checkpoint:
                         lastest_checkpoint.current_search_page = page
+                        lastest_checkpoint.current_search_id = dy_search_id
                         await self.checkpoint_manager.update_checkpoint(
                             lastest_checkpoint
                         )

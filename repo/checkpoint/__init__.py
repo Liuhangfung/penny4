@@ -1,13 +1,13 @@
-from .checkout_point import (
+from .checkpoint_store import (
     CheckpointJsonFileRepo,
     CheckpointRedisRepo,
-    CheckpointManager,
+    CheckpointRepoManager,
 )
 
 
 def create_checkpoint_manager(
     storage_type: str = "file", **kwargs
-) -> CheckpointManager:
+) -> CheckpointRepoManager:
     """创建检查点管理器的工厂函数
 
     Args:
@@ -15,7 +15,7 @@ def create_checkpoint_manager(
         **kwargs: 额外的参数传递给对应的存储库构造函数
 
     Returns:
-        CheckpointManager: 检查点管理器实例
+        CheckpointRepoManager: 检查点管理器实例
     """
     if storage_type.lower() == "redis":
         repo = CheckpointRedisRepo(**kwargs)
@@ -24,4 +24,4 @@ def create_checkpoint_manager(
     else:
         raise ValueError(f"不支持的存储类型: {storage_type}")
 
-    return CheckpointManager(repo)
+    return CheckpointRepoManager(repo)

@@ -18,7 +18,7 @@ from ..exception import DataFetchError
 
 if TYPE_CHECKING:
     from ..client import XiaoHongShuClient
-    from pkg.checkpoint.checkout_point import CheckpointManager
+    from repo.checkpoint.checkpoint_store import CheckpointRepoManager
 
 
 class NoteProcessor:
@@ -27,7 +27,7 @@ class NoteProcessor:
     def __init__(
         self,
         xhs_client: "XiaoHongShuClient",
-        checkpoint_manager: "CheckpointManager",
+        checkpoint_manager: "CheckpointRepoManager",
         crawler_note_task_semaphore: asyncio.Semaphore
     ):
         """
@@ -101,7 +101,7 @@ class NoteProcessor:
 
             finally:
                 is_success_crawled = note_detail is not None
-                await self.checkpoint_manager.update_crawled_note_task_to_checkpoint(
+                await self.checkpoint_manager.update_note_to_checkpoint(
                     checkpoint_id=checkpoint_id,
                     note_id=note_id,
                     is_success_crawled=is_success_crawled,
@@ -138,7 +138,7 @@ class NoteProcessor:
                 )
                 continue
 
-            await self.checkpoint_manager.add_crawled_note_task_to_checkpoint(
+            await self.checkpoint_manager.add_note_to_checkpoint(
                 checkpoint_id=checkpoint_id,
                 note_id=note_item.get("note_id", ""),
                 extra_params_info={

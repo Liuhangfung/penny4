@@ -173,26 +173,24 @@ class CheckpointRedisRepo(BaseCheckpointRepo):
             cache_type=config.CACHE_TYPE_REDIS
         )
 
-    def _get_checkpoint_key(self, id: str) -> str:
+    def _get_checkpoint_key(self, checkpoint_id: str) -> str:
         """生成检查点的Redis key"""
-        return f"{self.key_prefix}:{id}"
+        return f"{self.key_prefix}:{checkpoint_id}"
 
-    def _get_timestamp_key(self, id: str) -> str:
+    def _get_timestamp_key(self, checkpoint_id: str) -> str:
         """生成时间戳的Redis key，用于记录检查点的创建/更新时间"""
-        return f"{self.key_prefix}:timestamp:{id}"
+        return f"{self.key_prefix}:timestamp:{checkpoint_id}"
 
-    def get_checkpoint_ttl(self, platform: str, mode: str, id: str) -> int:
+    def get_checkpoint_ttl(self, checkpoint_id: str) -> int:
         """获取检查点的剩余生存时间
 
         Args:
-            platform (str): 平台
-            mode (str): 模式
-            id (str): 检查点ID
+            checkpoint_id (str): 检查点ID
 
         Returns:
             int: 剩余生存时间（秒），-1表示永不过期，-2表示键不存在
         """
-        checkpoint_key = self._get_checkpoint_key(platform, mode, id)
+        checkpoint_key = self._get_checkpoint_key(checkpoint_id)
         return self.redis_cache_client.ttl(checkpoint_key)
 
     async def save_checkpoint(self, checkpoint: Checkpoint) -> Checkpoint:
@@ -252,7 +250,7 @@ class CheckpointRedisRepo(BaseCheckpointRepo):
             for key in keys:
                 # 从key中提取id
                 checkpoint_id = key.split(":")[-1]
-                timestamp_key = self._get_timestamp_key(platform, mode, checkpoint_id)
+                timestamp_key = self._get_timestamp_key(checkpoint_id)
                 timestamp = self.redis_cache_client.get(timestamp_key)
 
                 if timestamp and int(timestamp) > latest_timestamp:
@@ -279,9 +277,7 @@ class CheckpointRedisRepo(BaseCheckpointRepo):
         """删除检查点
 
         Args:
-            platform (str): 平台
-            mode (str): 模式
-            id (str): 检查点ID
+            checkpoint_id (str): 检查点ID
         """
         checkpoint_key = self._get_checkpoint_key(checkpoint_id)
         timestamp_key = self._get_timestamp_key(checkpoint_id)
@@ -322,7 +318,7 @@ class CheckpointRedisRepo(BaseCheckpointRepo):
             )
 
 
-class CheckpointManager:
+class CheckpointRepoManager:
     def __init__(self, checkpoint_repo: BaseCheckpointRepo):
         self.checkpoint_repo = checkpoint_repo
         self.crawler_note_lock = asyncio.Lock()
@@ -352,18 +348,20 @@ class CheckpointManager:
             checkpoint.platform, checkpoint.mode, checkpoint.id
         )
 
-    async def add_crawled_note_task_to_checkpoint(
+    async def add_note_to_checkpoint(
         self,
         checkpoint_id: str,
         note_id: str,
         extra_params_info: Optional[Dict[str, Any]] = None,
+        is_success_crawled: bool = False,
     ):
-        """添加爬取帖子任务到检查点
+        """添加爬取帖子到检查点
 
         Args:
             checkpoint_id (Checkpoint): 检查点
             note_id (str): 帖子ID
             extra_params_info (Optional[Dict[str, Any]]): 额外参数信息
+            is_success_crawled (bool): 帖子是否成功爬取
         """
         async with self.crawler_note_lock:
             checkpoint = await self.load_checkpoint_by_id(checkpoint_id)
@@ -382,7 +380,7 @@ class CheckpointManager:
                 CheckpointNote(
                     note_id=note_id,
                     extra_params_info=extra_params_info,
-                    is_success_crawled=False,
+                    is_success_crawled=is_success_crawled,
                     is_success_crawled_comments=False,
                     current_note_comment_cursor=None,
                 )
@@ -391,7 +389,7 @@ class CheckpointManager:
             await self.update_checkpoint(checkpoint)
             return None
 
-    async def update_crawled_note_task_to_checkpoint(
+    async def update_note_to_checkpoint(
         self,
         checkpoint_id: str,
         note_id: str,

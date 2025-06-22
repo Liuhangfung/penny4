@@ -1,7 +1,7 @@
 import asyncio
 import os
 import sys
-from abc import abstractmethod
+from abc import abstractmethod, ABC
 import logging
 from typing import Any, Dict, Optional
 import pathlib
@@ -37,7 +37,7 @@ def generate_checkpoint_id(platform: str, mode: str) -> str:
     return f"{platform}_{mode}_{datetime.now().strftime('%Y%m%d%H%M%S')}"
 
 
-class BaseCheckpointRepo:
+class BaseCheckpointRepo(ABC):
     @abstractmethod
     async def save_checkpoint(self, checkpoint: Checkpoint) -> Checkpoint:
         """保存检查点
@@ -357,21 +357,26 @@ class CheckpointManager:
         checkpoint_id: str,
         note_id: str,
         extra_params_info: Optional[Dict[str, Any]] = None,
-    ) -> bool:
+    ):
         """添加爬取帖子任务到检查点
 
         Args:
-            checkpoint (Checkpoint): 检查点
+            checkpoint_id (Checkpoint): 检查点
             note_id (str): 帖子ID
+            extra_params_info (Optional[Dict[str, Any]]): 额外参数信息
         """
         async with self.crawler_note_lock:
             checkpoint = await self.load_checkpoint_by_id(checkpoint_id)
             if checkpoint is None:
                 logger.error(f"检查点不存在: {checkpoint_id}")
-                return False
+                raise ValueError(f"检查点不存在: {checkpoint_id}")
 
             if checkpoint.crawled_note_list is None:
                 checkpoint.crawled_note_list = []
+
+            for note in checkpoint.crawled_note_list:
+                if note.note_id == note_id:
+                    return None
 
             checkpoint.crawled_note_list.append(
                 CheckpointNote(
@@ -384,7 +389,7 @@ class CheckpointManager:
             )
 
             await self.update_checkpoint(checkpoint)
-            return True
+            return None
 
     async def update_crawled_note_task_to_checkpoint(
         self,
@@ -393,7 +398,7 @@ class CheckpointManager:
         is_success_crawled: bool,
         is_success_crawled_comments: bool,
         current_note_comment_cursor: Optional[str] = None,
-    ) -> bool:
+    ) :
         """更新已爬取的帖子, 需要协程安全
 
         Args:
@@ -417,6 +422,7 @@ class CheckpointManager:
                     break
 
             await self.update_checkpoint(checkpoint)
+            return None
 
     async def load_checkpoint_by_id(self, checkpoint_id: str) -> Optional[Checkpoint]:
         """加载检查点
@@ -472,6 +478,8 @@ class CheckpointManager:
                 return note.is_success_crawled
 
         return False
+
+
 
     async def check_note_comments_is_crawled_in_checkpoint(
         self, checkpoint_id: str, note_id: str

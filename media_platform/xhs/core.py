@@ -22,7 +22,6 @@ import constant
 from base.base_crawler import AbstractCrawler
 from model.m_checkpoint import Checkpoint
 from model.m_xiaohongshu import CreatorUrlInfo, NoteUrlInfo
-from pkg import checkpoint
 from pkg.account_pool.pool import AccountWithIpPoolManager
 from pkg.checkpoint import create_checkpoint_manager
 from pkg.checkpoint.checkout_point import CheckpointManager
@@ -141,7 +140,7 @@ class XiaoHongShuCrawler(AbstractCrawler):
         )
         keyword_list = self._get_search_keyword_list()
         checkpoint = Checkpoint(
-            platform=constant.XHS_PLATFORM_NAME, mode="search", current_page=1
+            platform=constant.XHS_PLATFORM_NAME, mode="search", current_search_page=1
         )
 
         # 如果开启了断点续爬，则加载检查点
@@ -176,8 +175,8 @@ class XiaoHongShuCrawler(AbstractCrawler):
             utils.logger.info(
                 f"[XiaoHongShuCrawler.search] Current search keyword: {keyword}"
             )
-            page = checkpoint.current_page
-            saved_note_count = 0
+            page = checkpoint.current_search_page
+            saved_note_count = (page - 1) * 20
             while saved_note_count <= config.CRAWLER_MAX_NOTES_COUNT:
                 try:
                     utils.logger.info(
@@ -210,13 +209,15 @@ class XiaoHongShuCrawler(AbstractCrawler):
                         if not note_id:
                             continue
 
+                        note_id_list.append(note_id)
+                        xsec_tokens.append(post_item.get("xsec_token"))
+
                         if await self.checkpoint_manager.check_note_is_crawled_in_checkpoint(
-                            checkpoint_id=checkpoint.id, note_id=note_id
+                                checkpoint_id=checkpoint.id, note_id=note_id
                         ):
                             utils.logger.info(
                                 f"[XiaoHongShuCrawler.search] Note {note_id} is already crawled, skip"
                             )
-                            # 断点续爬， 如果笔记已经爬取过，则直接加1
                             saved_note_count += 1
                             continue
 
@@ -240,8 +241,6 @@ class XiaoHongShuCrawler(AbstractCrawler):
                             )
                         )
                         task_list.append(task)
-                        note_id_list.append(note_id)
-                        xsec_tokens.append(post_item.get("xsec_token"))
 
                     note_details = await asyncio.gather(*task_list)
                     for note_detail in note_details:
@@ -283,7 +282,7 @@ class XiaoHongShuCrawler(AbstractCrawler):
                         )
                     )
                     if lastest_checkpoint:
-                        lastest_checkpoint.current_page = page
+                        lastest_checkpoint.current_search_page = page
                         await self.checkpoint_manager.update_checkpoint(
                             lastest_checkpoint
                         )
@@ -308,21 +307,21 @@ class XiaoHongShuCrawler(AbstractCrawler):
         return -1
 
     async def get_all_notes_by_creator(
-        self,
-        user_id: str,
-        crawl_interval: float = 1.0,
-        xsec_token: str = "",
-        xsec_source: str = "",
-        checkpoint_id: str = "",
+            self,
+            user_id: str,
+            crawl_interval: float = 1.0,
+            xsec_token: str = "",
+            xsec_source: str = "",
+            checkpoint_id: str = "",
     ) -> List[Dict]:
         """
         获取指定用户下的所有发过的帖子，该方法会一直查找一个用户下的所有帖子信息
         Args:
             user_id: 用户ID
             crawl_interval: 爬取一次的延迟单位（秒）
-            callback: 一次分页爬取结束后的更新回调函数
             xsec_token: 验证token
             xsec_source: 渠道来源
+            checkpoint_id: 检查点ID
 
         Returns:
 
@@ -335,24 +334,25 @@ class XiaoHongShuCrawler(AbstractCrawler):
 
         result = []
         notes_has_more = True
-        notes_cursor = checkpoint.current_page or ""
-        while notes_has_more:
+        notes_cursor = checkpoint.current_creator_page or ""
+        saved_creator_count = 0
+        while notes_has_more and saved_creator_count <= config.CRAWLER_MAX_NOTES_COUNT:
             notes_res = await self.xhs_client.get_notes_by_creator(
                 user_id,
                 notes_cursor,
                 xsec_token=xsec_token,
                 xsec_source=xsec_source,
             )
-            checkpoint.current_page = notes_cursor
-            await self.checkpoint_manager.update_checkpoint(checkpoint)
 
             if not notes_res:
                 utils.logger.error(
                     f"[XiaoHongShuClient.get_notes_by_creator] The current creator may have been banned by xhs, so they cannot access the data."
                 )
                 break
+
             notes_has_more = notes_res.get("has_more", False)
             notes_cursor = notes_res.get("cursor", "")
+
             if "notes" not in notes_res:
                 utils.logger.info(
                     f"[XiaoHongShuClient.get_all_notes_by_creator] No 'notes' key found in response: {notes_res}"
@@ -366,6 +366,12 @@ class XiaoHongShuCrawler(AbstractCrawler):
             await self.fetch_creator_notes_detail(notes, checkpoint_id=checkpoint_id)
             await asyncio.sleep(crawl_interval)
             result.extend(notes)
+            saved_creator_count += len(notes)
+
+            # 需要加载最新的检查点，因为在fetch_creator_notes_detail方法中，有对检查点左边
+            checkpoint = await self.checkpoint_manager.load_checkpoint_by_id(checkpoint_id)
+            checkpoint.current_creator_page = notes_cursor
+            await self.checkpoint_manager.update_checkpoint(checkpoint)
         return result
 
     async def get_creators_and_notes(self) -> None:
@@ -432,7 +438,7 @@ class XiaoHongShuCrawler(AbstractCrawler):
             )
 
     async def fetch_creator_notes_detail(
-        self, note_list: List[Dict], checkpoint_id: str = ""
+            self, note_list: List[Dict], checkpoint_id: str = ""
     ):
         """
          Concurrently obtain the specified post list and save the data
@@ -453,7 +459,7 @@ class XiaoHongShuCrawler(AbstractCrawler):
             xsec_tokens.append(note_item.get("xsec_token", ""))
 
             if await self.checkpoint_manager.check_note_is_crawled_in_checkpoint(
-                checkpoint_id=checkpoint_id, note_id=note_item.get("note_id", "")
+                    checkpoint_id=checkpoint_id, note_id=note_item.get("note_id", "")
             ):
                 utils.logger.info(
                     f"[XiaoHongShuCrawler.fetch_creator_notes_detail] Note {note_item.get('note_id', '')} is already crawled, skip"
@@ -526,7 +532,7 @@ class XiaoHongShuCrawler(AbstractCrawler):
             xsec_tokens.append(note_url_info.xsec_token)
 
             if await self.checkpoint_manager.check_note_is_crawled_in_checkpoint(
-                checkpoint_id=checkpoint.id, note_id=note_url_info.note_id
+                    checkpoint_id=checkpoint.id, note_id=note_url_info.note_id
             ):
                 utils.logger.info(
                     f"[XiaoHongShuCrawler.get_specified_notes] Note {note_url_info.note_id} is already crawled, skip"
@@ -562,11 +568,11 @@ class XiaoHongShuCrawler(AbstractCrawler):
         )
 
     async def get_note_detail_async_task(
-        self,
-        note_id: str,
-        xsec_source: str,
-        xsec_token: str,
-        checkpoint_id: str,
+            self,
+            note_id: str,
+            xsec_source: str,
+            xsec_token: str,
+            checkpoint_id: str,
     ) -> Optional[Dict]:
         """
         Get note detail from html or api
@@ -629,10 +635,10 @@ class XiaoHongShuCrawler(AbstractCrawler):
                 )
 
     async def batch_get_note_comments(
-        self,
-        note_list: List[str],
-        xsec_tokens: List[str] = [],
-        checkpoint_id: str = "",
+            self,
+            note_list: List[str],
+            xsec_tokens=None,
+            checkpoint_id: str = "",
     ):
         """
         Batch get note comments
@@ -644,6 +650,8 @@ class XiaoHongShuCrawler(AbstractCrawler):
         Returns:
 
         """
+        if xsec_tokens is None:
+            xsec_tokens = []
         if not config.ENABLE_GET_COMMENTS:
             utils.logger.info(
                 f"[XiaoHongShuCrawler.batch_get_note_comments] Crawling comment mode is not enabled"
@@ -658,7 +666,7 @@ class XiaoHongShuCrawler(AbstractCrawler):
 
             # 先判断checkpoint中该note的is_success_crawled_comments是否为True，如果为True，则跳过
             if await self.checkpoint_manager.check_note_comments_is_crawled_in_checkpoint(
-                checkpoint_id=checkpoint_id, note_id=note_id
+                    checkpoint_id=checkpoint_id, note_id=note_id
             ):
                 utils.logger.info(
                     f"[XiaoHongShuCrawler.batch_get_note_comments] Note {note_id} is already crawled comments, skip"
@@ -677,10 +685,10 @@ class XiaoHongShuCrawler(AbstractCrawler):
         await asyncio.gather(*task_list)
 
     async def get_comments_async_task(
-        self,
-        note_id: str,
-        xsec_token: str = "",
-        checkpoint_id: str = "",
+            self,
+            note_id: str,
+            xsec_token: str = "",
+            checkpoint_id: str = "",
     ):
         """
         Get note comments with keyword filtering and quantity limitation
@@ -705,12 +713,12 @@ class XiaoHongShuCrawler(AbstractCrawler):
             )
 
     async def get_note_all_comments(
-        self,
-        note_id: str,
-        crawl_interval: float = 1.0,
-        callback: Optional[Callable] = None,
-        xsec_token: str = "",
-        checkpoint_id: str = "",
+            self,
+            note_id: str,
+            crawl_interval: float = 1.0,
+            callback: Optional[Callable] = None,
+            xsec_token: str = "",
+            checkpoint_id: str = "",
     ) -> List[Dict]:
         """
         获取指定笔记下的所有一级评论，该方法会一直查找一个帖子下的所有评论信息
@@ -769,13 +777,9 @@ class XiaoHongShuCrawler(AbstractCrawler):
             await asyncio.sleep(crawl_interval)
             result.extend(comments)
 
-            # 随机抛异常，测试断点续爬功能
-            if random.random() < 0.1:
-                raise Exception("debug for checkpoint crawler note comments")
-
             if (
-                PER_NOTE_MAX_COMMENTS_COUNT
-                and len(result) >= PER_NOTE_MAX_COMMENTS_COUNT
+                    PER_NOTE_MAX_COMMENTS_COUNT
+                    and len(result) >= PER_NOTE_MAX_COMMENTS_COUNT
             ):
                 utils.logger.info(
                     f"[XiaoHongShuClient.get_note_all_comments] The number of comments exceeds the limit: {PER_NOTE_MAX_COMMENTS_COUNT}"
@@ -797,11 +801,11 @@ class XiaoHongShuCrawler(AbstractCrawler):
         return result
 
     async def get_comments_all_sub_comments(
-        self,
-        comments: List[Dict],
-        crawl_interval: float = 1.0,
-        callback: Optional[Callable] = None,
-        xsec_token: str = "",
+            self,
+            comments: List[Dict],
+            crawl_interval: float = 1.0,
+            callback: Optional[Callable] = None,
+            xsec_token: str = "",
     ) -> List[Dict]:
         """
         获取指定一级评论下的所有二级评论, 该方法会一直查找一级评论下的所有二级评论信息
@@ -865,55 +869,159 @@ class XiaoHongShuCrawler(AbstractCrawler):
         utils.logger.info(
             "[XiaoHongShuCrawler.get_homefeed_notes] Begin get xiaohongshu homefeed notes"
         )
-        current_cursor = ""
+
+        # 初始化检查点
+        checkpoint = Checkpoint(
+            platform=constant.XHS_PLATFORM_NAME,
+            mode="homefeed",
+            current_homefeed_cursor="",
+            current_homefeed_note_index=0
+        )
+
+        # 如果开启了断点续爬，则加载检查点
+        if config.ENABLE_CHECKPOINT:
+            lastest_checkpoint = await self.checkpoint_manager.load_checkpoint(
+                platform=constant.XHS_PLATFORM_NAME,
+                mode="homefeed",
+                checkpoint_id=config.SPECIFIED_CHECKPOINT_ID,
+            )
+            if lastest_checkpoint:
+                checkpoint = lastest_checkpoint
+                utils.logger.info(
+                    f"[XiaoHongShuCrawler.get_homefeed_notes] Load lastest checkpoint: {lastest_checkpoint.id}"
+                )
+        await self.checkpoint_manager.save_checkpoint(checkpoint)
+
+        current_cursor = checkpoint.current_homefeed_cursor or ""
+        note_index = checkpoint.current_homefeed_note_index or 0
         saved_note_count = 0
-        note_index = 0
         note_num = 18
+
         while saved_note_count <= config.CRAWLER_MAX_NOTES_COUNT:
-            homefeed_notes_res = await self.xhs_client.get_homefeed_notes(
-                category=FeedType.RECOMMEND,
-                cursor=current_cursor,
-                note_index=note_index,
-                note_num=note_num,
-            )
-            if not homefeed_notes_res:
+            try:
                 utils.logger.info(
-                    f"[XiaoHongShuCrawler.get_homefeed_notes] No more content!"
+                    f"[XiaoHongShuCrawler.get_homefeed_notes] Get homefeed notes, current_cursor: {current_cursor}, note_index: {note_index}, note_num: {note_num}"
                 )
-                break
 
-            cursor_score = homefeed_notes_res.get("cursor_score", "")
-            if not cursor_score:
+                homefeed_notes_res = await self.xhs_client.get_homefeed_notes(
+                    category=FeedType.RECOMMEND,
+                    cursor=current_cursor,
+                    note_index=note_index,
+                    note_num=note_num,
+                )
+                if not homefeed_notes_res:
+                    utils.logger.info(
+                        f"[XiaoHongShuCrawler.get_homefeed_notes] No more content!"
+                    )
+                    break
+
+                cursor_score = homefeed_notes_res.get("cursor_score", "")
+                if not cursor_score:
+                    utils.logger.info(
+                        f"[XiaoHongShuCrawler.get_homefeed_notes] No more content!"
+                    )
+                    break
+
+                items: List[Dict] = homefeed_notes_res.get("items", [])
+                note_id_list, xsec_tokens = [], []
+                task_list = []
+
+                # 首页推荐信息流比较特殊，每一次打开首页推荐的信息流都不一样的概率较大，如果上一次的checkpoint中存在未爬取的帖子信息，如果参考之前搜索关键词和创作者主页的那种方式来实现，会漏很多帖子列表信息
+                # 所以在这里往，task_list中，先讲上一次检测点中未爬取的帖子列表创建爬取任务，放进去
+                compensation_note_ids = set()
+                for note_item in checkpoint.crawled_note_list:
+                    if not note_item.is_success_crawled:
+                        task = self.get_note_detail_async_task(
+                            note_id=note_item.note_id,
+                            xsec_source=note_item.extra_params_info.get("xsec_source", ""),
+                            xsec_token=note_item.extra_params_info.get("xsec_token", ""),
+                            checkpoint_id=checkpoint.id,
+                        )
+                        task_list.append(task)
+                        compensation_note_ids.add(note_item.note_id)
+
+                for post_item in items:
+                    if post_item.get("model_type") not in ("rec_query", "hot_query"):
+                        note_id = post_item.get("id")
+                        if not note_id:
+                            continue
+
+                        note_id_list.append(note_id)
+                        xsec_tokens.append(post_item.get("xsec_token", ""))
+
+                        # 检查笔记是否已经被爬取过
+                        if await self.checkpoint_manager.check_note_is_crawled_in_checkpoint(
+                                checkpoint_id=checkpoint.id, note_id=note_id
+                        ):
+                            utils.logger.info(
+                                f"[XiaoHongShuCrawler.get_homefeed_notes] Note {note_id} is already crawled, skip"
+                            )
+                            saved_note_count += 1
+                            continue
+
+                        # 添加爬取帖子任务到检查点
+                        await self.checkpoint_manager.add_crawled_note_task_to_checkpoint(
+                            checkpoint_id=checkpoint.id,
+                            note_id=note_id,
+                            extra_params_info={
+                                "xsec_source": "pc_feed",
+                                "xsec_token": post_item.get("xsec_token", ""),
+                            },
+                        )
+
+                        if note_id not in compensation_note_ids:
+                            task = asyncio.create_task(
+                                self.get_note_detail_async_task(
+                                    note_id=note_id,
+                                    xsec_source="pc_feed",
+                                    xsec_token=post_item.get("xsec_token", ""),
+                                    checkpoint_id=checkpoint.id,
+                                )
+                            )
+                            task_list.append(task)
+
+                note_details = await asyncio.gather(*task_list)
+                for note_detail in note_details:
+                    if note_detail:
+                        saved_note_count += 1
+                        await xhs_store.update_xhs_note(note_detail)
+
+                await self.batch_get_note_comments(
+                    note_id_list, xsec_tokens, checkpoint_id=checkpoint.id
+                )
+
+                current_cursor = cursor_score
+                note_index += note_num
+
+            except Exception as ex:
+                utils.logger.error(
+                    f"[XiaoHongShuCrawler.get_homefeed_notes] Get homefeed notes error: {ex}"
+                )
+                # 发生异常了，则打印当前爬取的游标和索引，用于后续继续爬取
                 utils.logger.info(
-                    f"[XiaoHongShuCrawler.get_homefeed_notes] No more content!"
+                    "------------------------------------------记录当前爬取的游标和索引------------------------------------------"
                 )
-                break
-
-            items: List[Dict] = homefeed_notes_res.get("items", [])
-            current_cursor = cursor_score
-            note_index += note_num
-            note_id_list, xsec_tokens = [], []
-            task_list = [
-                self.get_note_detail_async_task(
-                    note_id=post_item.get("id"),
-                    xsec_source="pc_feed",
-                    xsec_token=post_item.get("xsec_token", ""),
+                for i in range(3):
+                    utils.logger.error(
+                        f"[XiaoHongShuCrawler.get_homefeed_notes] Current cursor: {current_cursor}, note_index: {note_index}"
+                    )
+                utils.logger.info(
+                    "------------------------------------------记录当前爬取的游标和索引---------------------------------------------------"
                 )
-                for post_item in items
-                if post_item.get("model_type") not in ("rec_query", "hot_query")
-            ]
-            note_details = await asyncio.gather(*task_list)
-            for note_detail in note_details:
-                if note_detail:
-                    await xhs_store.update_xhs_note(note_detail)
-                    note_id_list.append(note_detail.get("note_id", ""))
-                    xsec_tokens.append(note_detail.get("xsec_token", ""))
 
-            saved_note_count += len(note_details)
-            await self.batch_get_note_comments(note_id_list, xsec_tokens)
-            utils.logger.info(
-                f"[XiaoHongShuCrawler.get_homefeed_notes] Get homefeed notes, current_cursor: {current_cursor}, note_index: {note_index}, note_num: {note_num}"
-            )
+                utils.logger.info(
+                    f"[XiaoHongShuCrawler.get_homefeed_notes] 可以在配置文件中开启断点续爬功能，继续爬取当前位置的信息"
+                )
+                return
+
+            finally:
+                # 更新检查点状态
+                lastest_checkpoint = (
+                    await self.checkpoint_manager.load_checkpoint_by_id(checkpoint.id)
+                )
+                lastest_checkpoint.current_homefeed_cursor = current_cursor
+                lastest_checkpoint.current_homefeed_note_index = note_index
+                await self.checkpoint_manager.update_checkpoint(lastest_checkpoint)
 
         utils.logger.info(
             "[XiaoHongShuCrawler.get_homefeed_notes] XiaoHongShu homefeed notes crawler finished ..."

@@ -27,16 +27,21 @@ class Checkpoint(BaseModel):
     platform: str = Field(
         ..., description="平台名称，如 xhs、dy、ks、bili、wb、tieba、zhihu"
     )
-    mode: str = Field(..., description="模式：search/detail/creator")
+    mode: str = Field(..., description="模式：search/detail/creator/homefeed")
 
     # 搜索模式相关字段
     current_search_keyword: Optional[str] = Field(None, description="当前搜索关键词")
-    current_page: Optional[int] = Field(None, description="当前页码")
+    current_search_page: Optional[int] = Field(None, description="当前搜索页码")
 
     # 创作者模式相关字段
     current_creator_id: Optional[str] = Field(None, description="当前创作者ID")
+    current_creator_page: Optional[str] = Field(None, description="当前创作者页码")
 
-    # 帖子相关字段（搜索模式、详情模式、创作者模式都可能用到）
+    # 首页推荐流相关字段
+    current_homefeed_cursor: Optional[str] = Field(None, description="当前首页推荐流游标")
+    current_homefeed_note_index: Optional[int] = Field(None, description="当前首页推荐流笔记索引")
+
+    # 帖子相关字段（搜索模式、详情模式、创作者模式、首页推荐流能用到）
     crawled_note_list: Optional[List[CheckpointNote]] = Field(
         None, description="已爬取的帖子列表"
     )

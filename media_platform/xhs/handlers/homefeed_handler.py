@@ -67,7 +67,7 @@ class HomefeedHandler(BaseHandler):
         # 初始化检查点
         checkpoint = Checkpoint(
             platform=constant.XHS_PLATFORM_NAME,
-            mode="homefeed",
+            mode=constant.CRALER_TYPE_HOMEFEED,
             current_homefeed_cursor="",
             current_homefeed_note_index=0
         )
@@ -76,7 +76,7 @@ class HomefeedHandler(BaseHandler):
         if config.ENABLE_CHECKPOINT:
             lastest_checkpoint = await self.checkpoint_manager.load_checkpoint(
                 platform=constant.XHS_PLATFORM_NAME,
-                mode="homefeed",
+                mode=constant.CRALER_TYPE_HOMEFEED,
                 checkpoint_id=config.SPECIFIED_CHECKPOINT_ID,
             )
             if lastest_checkpoint:

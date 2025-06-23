@@ -117,17 +117,21 @@ class DouYinCrawler(AbstractCrawler):
         Returns:
 
         """
-        if config.CRAWLER_TYPE == "search":
+        if config.CRAWLER_TYPE == constant.CRALER_TYPE_SEARCH:
             # Search for notes and retrieve their comment information.
             await self.search_handler.handle()
-        elif config.CRAWLER_TYPE == "detail":
+        elif config.CRAWLER_TYPE == constant.CRALER_TYPE_DETAIL:
             # Get the information and comments of the specified post
             await self.detail_handler.handle()
-        elif config.CRAWLER_TYPE == "creator":
+        elif config.CRAWLER_TYPE == constant.CRALER_TYPE_CREATOR:
             # Get the information and comments of the specified creator
             await self.creator_handler.handle()
-        elif config.CRAWLER_TYPE == "homefeed":
+        elif config.CRAWLER_TYPE == constant.CRALER_TYPE_HOMEFEED:
             # Get the information and comments of the specified creator
             await self.homefeed_handler.handle()
+        else:
+            raise NotImplementedError(
+                f"[DouYinCrawler.start] Not support crawler type: {config.CRAWLER_TYPE}"
+            )
         utils.logger.info("[DouYinCrawler.start] Douyin Crawler finished ...")
 

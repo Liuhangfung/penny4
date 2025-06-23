@@ -80,13 +80,13 @@ class CreatorHandler(BaseHandler):
         utils.logger.info(
             "[CreatorHandler.get_creators_and_videos] Begin get douyin creators"
         )
-        checkpoint = Checkpoint(platform=constant.DOUYIN_PLATFORM_NAME, mode="creator")
+        checkpoint = Checkpoint(platform=constant.DOUYIN_PLATFORM_NAME, mode=constant.CRALER_TYPE_CREATOR)
         creator_list = config.DY_CREATOR_ID_LIST
 
         if config.ENABLE_CHECKPOINT:
             lastest_checkpoint = await self.checkpoint_manager.load_checkpoint(
                 platform=constant.DOUYIN_PLATFORM_NAME,
-                mode="creator",
+                mode=constant.CRALER_TYPE_CREATOR,
                 checkpoint_id=config.SPECIFIED_CHECKPOINT_ID,
             )
             if lastest_checkpoint:

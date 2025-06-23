@@ -8,23 +8,10 @@
 # 详细许可条款请参阅项目根目录下的LICENSE文件。  
 # 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。  
 
+from .video_processor import VideoProcessor
+from .comment_processor import CommentProcessor
 
-# -*- coding: utf-8 -*-
-
-XHS_PLATFORM_NAME = 'xhs'
-DOUYIN_PLATFORM_NAME = 'dy'
-KUAISHOU_PLATFORM_NAME = 'ks'
-BILIBILI_PLATFORM_NAME = 'bili'
-WEIBO_PLATFORM_NAME = 'wb'
-TIEBA_PLATFORM_NAME = 'tieba'
-ZHIHU_PLATFORM_NAME = 'zhihu'
-
-EXCEL_ACCOUNT_SAVE = 'xlsx'
-MYSQL_ACCOUNT_SAVE = 'mysql'
-
-
-CRALER_TYPE_SEARCH = 'search'
-CRALER_TYPE_DETAIL = 'detail'
-CRALER_TYPE_CREATOR = 'creator'
-CRALER_TYPE_HOMEFEED = 'homefeed'
-
+__all__ = [
+    "VideoProcessor",
+    "CommentProcessor"
+]

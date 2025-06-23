@@ -65,13 +65,13 @@ class DetailHandler(BaseHandler):
             "[DetailHandler.get_specified_notes] Begin get xiaohongshu specified notes"
         )
 
-        checkpoint = Checkpoint(platform=constant.XHS_PLATFORM_NAME, mode="detail")
+        checkpoint = Checkpoint(platform=constant.XHS_PLATFORM_NAME, mode=constant.CRALER_TYPE_DETAIL)
 
         # 如果开启了断点续爬，则加载检查点
         if config.ENABLE_CHECKPOINT:
             lastest_checkpoint = await self.checkpoint_manager.load_checkpoint(
                 platform=constant.XHS_PLATFORM_NAME,
-                mode="detail",
+                mode=constant.CRALER_TYPE_DETAIL,
                 checkpoint_id=config.SPECIFIED_CHECKPOINT_ID,
             )
             if lastest_checkpoint:

@@ -509,6 +509,9 @@ class CheckpointRepoManager:
         if checkpoint is None:
             return None
 
+        if checkpoint.crawled_note_list is None:
+            return None
+
         for note in checkpoint.crawled_note_list:
             if note.note_id == note_id:
                 return note.current_note_comment_cursor

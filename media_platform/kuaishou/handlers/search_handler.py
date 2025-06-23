@@ -6,49 +6,50 @@
 # 5. 不得用于任何非法或不当的用途。
 #   
 # 详细许可条款请参阅项目根目录下的LICENSE文件。  
-# 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。
-from typing import List, TYPE_CHECKING
+# 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。  
+
+from typing import Dict, List, TYPE_CHECKING
 
 import config
 import constant
 from model.m_checkpoint import Checkpoint
 from pkg.tools import utils
+from repo.platform_save_data import kuaishou as kuaishou_store
 from var import source_keyword_var
-from ..field import SearchSortType
 from .base_handler import BaseHandler
 
 if TYPE_CHECKING:
-    from ..client import XiaoHongShuClient
+    from ..client import KuaiShouApiClient
     from repo.checkpoint.checkpoint_store import CheckpointRepoManager
-    from ..processors.note_processor import NoteProcessor
+    from ..processors.video_processor import VideoProcessor
     from ..processors.comment_processor import CommentProcessor
 
 
 class SearchHandler(BaseHandler):
-    """Handles search-based crawling operations"""
+    """Handles search-based crawling operations for keywords"""
 
     def __init__(
-            self,
-            xhs_client: "XiaoHongShuClient",
-            checkpoint_manager: "CheckpointRepoManager",
-            note_processor: "NoteProcessor",
-            comment_processor: "CommentProcessor"
+        self,
+        ks_client: "KuaiShouApiClient",
+        checkpoint_manager: "CheckpointRepoManager",
+        video_processor: "VideoProcessor",
+        comment_processor: "CommentProcessor"
     ):
         """
         Initialize search handler
-        
+
         Args:
-            xhs_client: XiaoHongShu API client
+            ks_client: Kuaishou API client
             checkpoint_manager: Checkpoint manager for resume functionality
-            note_processor: Note processing component
+            video_processor: Video processing component
             comment_processor: Comment processing component
         """
-        super().__init__(xhs_client, checkpoint_manager, note_processor, comment_processor)
+        super().__init__(ks_client, checkpoint_manager, video_processor, comment_processor)
 
     async def handle(self) -> None:
         """
         Handle search-based crawling
-        
+
         Returns:
             None
         """
@@ -79,96 +80,123 @@ class SearchHandler(BaseHandler):
             if keyword_item == keyword:
                 return index
         return -1
-
+    
     async def search(self) -> None:
         """
-        Search for notes and retrieve their comment information.
+        Search for videos and retrieve their comment information with checkpoint support.
         Returns:
             None
         """
-        utils.logger.info(
-            "[SearchHandler.search] Begin search xiaohongshu keywords"
-        )
+        utils.logger.info("[SearchHandler.search] Begin search kuaishou keywords")
+        ks_limit_count = 20  # kuaishou limit page fixed value
+        if config.CRAWLER_MAX_NOTES_COUNT < ks_limit_count:
+            config.CRAWLER_MAX_NOTES_COUNT = ks_limit_count
+
         keyword_list = self._get_search_keyword_list()
         checkpoint = Checkpoint(
-            platform=constant.XHS_PLATFORM_NAME, mode=constant.CRALER_TYPE_SEARCH, current_search_page=1
+            platform=constant.KUAISHOU_PLATFORM_NAME,
+            mode=constant.CRALER_TYPE_SEARCH,
+            current_search_page=1
         )
 
         # 如果开启了断点续爬，则加载检查点
         if config.ENABLE_CHECKPOINT:
-            lastest_checkpoint = await self.checkpoint_manager.load_checkpoint(
-                platform=constant.XHS_PLATFORM_NAME,
+            latest_checkpoint = await self.checkpoint_manager.load_checkpoint(
+                platform=constant.KUAISHOU_PLATFORM_NAME,
                 mode=constant.CRALER_TYPE_SEARCH,
                 checkpoint_id=config.SPECIFIED_CHECKPOINT_ID,
             )
-            if lastest_checkpoint:
-                checkpoint = lastest_checkpoint
+            if latest_checkpoint:
+                checkpoint = latest_checkpoint
                 utils.logger.info(
-                    f"[SearchHandler.search] Load lastest checkpoint: {lastest_checkpoint.id}"
+                    f"[SearchHandler.search] Load latest checkpoint: {latest_checkpoint.id}"
                 )
                 keyword_index = self._find_keyword_index_in_keyword_list(
-                    lastest_checkpoint.current_search_keyword
+                    latest_checkpoint.current_search_keyword
                 )
                 if keyword_index == -1:
                     utils.logger.error(
-                        f"[SearchHandler.search] Keyword {lastest_checkpoint.current_search_keyword} not found in keyword list"
+                        f"[SearchHandler.search] Keyword {latest_checkpoint.current_search_keyword} not found in keyword list"
                     )
                     return
                 keyword_list = keyword_list[keyword_index:]
 
         for keyword in keyword_list:
             source_keyword_var.set(keyword)
+            search_session_id = ""
 
             # 按关键字保存检查点，后面的业务行为都是基于这个检查点来更新page信息，所以需要先保存检查点
             checkpoint.current_search_keyword = keyword
             await self.checkpoint_manager.save_checkpoint(checkpoint)
 
-            utils.logger.info(
-                f"[SearchHandler.search] Current search keyword: {keyword}"
-            )
+            utils.logger.info(f"[SearchHandler.search] Current keyword: {keyword}")
             page = checkpoint.current_search_page
-            saved_note_count = (page - 1) * 20
-            while saved_note_count <= config.CRAWLER_MAX_NOTES_COUNT:
+            saved_video_count = (page - 1) * ks_limit_count
+
+            while saved_video_count <= config.CRAWLER_MAX_NOTES_COUNT:
                 try:
                     utils.logger.info(
-                        f"[SearchHandler.search] search xhs keyword: {keyword}, page: {page}"
+                        f"[SearchHandler.search] search kuaishou keyword: {keyword}, page: {page}"
                     )
-                    notes_res = await self.xhs_client.get_note_by_keyword(
+
+                    video_id_list: List[str] = []
+                    videos_res = await self.ks_client.search_info_by_keyword(
                         keyword=keyword,
-                        page=page,
-                        sort=(
-                            SearchSortType(config.SORT_TYPE)
-                            if config.SORT_TYPE != ""
-                            else SearchSortType.GENERAL
-                        ),
+                        pcursor=str(page),
+                        search_session_id=search_session_id,
                     )
-                    utils.logger.info(
-                        f"[SearchHandler.search] Search notes res count:{len(notes_res.get('items', []))}"
-                    )
-                    if not notes_res or not notes_res.get("has_more", False):
-                        utils.logger.info("No more content!")
-                        break
 
-                    # 过滤掉推荐和热门的查询
-                    note_list = []
-                    for post_item in notes_res.get("items", []):
-                        if post_item.get("model_type") in ("rec_query", "hot_query"):
+                    if not videos_res:
+                        utils.logger.error(
+                            f"[SearchHandler.search] search info by keyword:{keyword} not found data"
+                        )
+                        continue
+
+                    vision_search_photo: Dict = videos_res.get("visionSearchPhoto")
+                    if vision_search_photo.get("result") != 1:
+                        utils.logger.error(
+                            f"[SearchHandler.search] search info by keyword:{keyword} not found data "
+                        )
+                        continue
+
+                    search_session_id = vision_search_photo.get("searchSessionId", "")
+                    video_list = vision_search_photo.get("feeds", [])
+
+                    # 处理视频列表并保存
+                    for video_detail in video_list:
+                        video_id = video_detail.get("photo", {}).get("id")
+                        if not video_id:
                             continue
-                        note_list.append(post_item)
 
-                    note_id_list, xsec_tokens = await self.note_processor.batch_get_note_list(
-                        note_list=note_list,
-                        checkpoint_id=checkpoint.id
-                    )
-                    await self.comment_processor.batch_get_note_comments(
-                        note_id_list, xsec_tokens, checkpoint_id=checkpoint.id
-                    )
+                        video_id_list.append(video_id)
 
+                        # 检查是否已经爬取过
+                        if await self.checkpoint_manager.check_note_is_crawled_in_checkpoint(
+                                checkpoint_id=checkpoint.id, note_id=video_id
+                        ):
+                            utils.logger.info(
+                                f"[SearchHandler.search] video {video_id} is already crawled, skip"
+                            )
+                            saved_video_count += 1
+                            continue
+
+                        await self.checkpoint_manager.add_note_to_checkpoint(
+                            checkpoint_id=checkpoint.id,
+                            note_id=video_id,
+                            extra_params_info={},
+                            is_success_crawled=True,
+                        )
+
+                        await kuaishou_store.update_kuaishou_video(video_item=video_detail)
+                        saved_video_count += 1
+
+                    # 批量获取视频评论
+                    await self.comment_processor.batch_get_video_comments(video_id_list, checkpoint.id)
                     page += 1
 
                 except Exception as ex:
                     utils.logger.error(
-                        f"[SearchHandler.search] Search notes error: {ex}"
+                        f"[SearchHandler.search] Search videos error: {ex}"
                     )
                     # 发生异常了，则打印当前爬取的关键词和页码，用于后续继续爬取
                     utils.logger.info(

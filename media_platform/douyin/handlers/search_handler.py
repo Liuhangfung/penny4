@@ -95,14 +95,14 @@ class SearchHandler(BaseHandler):
         
         keyword_list = self._get_search_keyword_list()
         checkpoint = Checkpoint(
-            platform=constant.DOUYIN_PLATFORM_NAME, mode="search", current_search_page=config.START_PAGE
+            platform=constant.DOUYIN_PLATFORM_NAME, mode=constant.CRALER_TYPE_SEARCH, current_search_page=config.START_PAGE
         )
 
         # 如果开启了断点续爬，则加载检查点
         if config.ENABLE_CHECKPOINT:
             lastest_checkpoint = await self.checkpoint_manager.load_checkpoint(
                 platform=constant.DOUYIN_PLATFORM_NAME,
-                mode="search",
+                mode=constant.CRALER_TYPE_SEARCH,
                 checkpoint_id=config.SPECIFIED_CHECKPOINT_ID,
             )
             if lastest_checkpoint:

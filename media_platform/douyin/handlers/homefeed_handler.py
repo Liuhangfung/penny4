@@ -28,13 +28,13 @@ if TYPE_CHECKING:
 
 class HomefeedHandler(BaseHandler):
     """Handles homefeed-based crawling operations"""
-    
+
     def __init__(
-        self,
-        dy_client: "DouYinApiClient",
-        checkpoint_manager: "CheckpointRepoManager",
-        aweme_processor: "AwemeProcessor",
-        comment_processor: "CommentProcessor"
+            self,
+            dy_client: "DouYinApiClient",
+            checkpoint_manager: "CheckpointRepoManager",
+            aweme_processor: "AwemeProcessor",
+            comment_processor: "CommentProcessor"
     ):
         """
         Initialize homefeed handler
@@ -46,7 +46,7 @@ class HomefeedHandler(BaseHandler):
             comment_processor: Comment processing component
         """
         super().__init__(dy_client, checkpoint_manager, aweme_processor, comment_processor)
-    
+
     async def handle(self) -> None:
         """
         Handle homefeed-based crawling
@@ -55,7 +55,7 @@ class HomefeedHandler(BaseHandler):
             None
         """
         await self.get_homefeed_awemes()
-    
+
     async def get_homefeed_awemes(self):
         """
         Get homefeed awemes and comments
@@ -69,7 +69,7 @@ class HomefeedHandler(BaseHandler):
         # 初始化检查点
         checkpoint = Checkpoint(
             platform=constant.DOUYIN_PLATFORM_NAME,
-            mode="homefeed",
+            mode=constant.CRALER_TYPE_HOMEFEED,
             current_homefeed_cursor="",
             current_homefeed_note_index=0
         )
@@ -78,7 +78,7 @@ class HomefeedHandler(BaseHandler):
         if config.ENABLE_CHECKPOINT:
             lastest_checkpoint = await self.checkpoint_manager.load_checkpoint(
                 platform=constant.DOUYIN_PLATFORM_NAME,
-                mode="homefeed",
+                mode=constant.CRALER_TYPE_HOMEFEED,
                 checkpoint_id=config.SPECIFIED_CHECKPOINT_ID,
             )
             if lastest_checkpoint:
@@ -129,7 +129,7 @@ class HomefeedHandler(BaseHandler):
                             checkpoint_id=checkpoint.id, note_id=aweme_id
                     ):
                         utils.logger.info(
-                            f"[HomefeedHandler.search] Aweme {aweme_id} is already crawled, skip"
+                            f"[HomefeedHandler.get_homefeed_videos] Aweme {aweme_id} is already crawled, skip"
                         )
                         saved_aweme_count += 1
                         continue
@@ -143,7 +143,6 @@ class HomefeedHandler(BaseHandler):
 
                     await douyin_store.update_douyin_aweme(aweme_item=aweme_info)
                     saved_aweme_count += 1
-
 
                 await self.comment_processor.batch_get_aweme_comments(
                     aweme_ids, checkpoint_id=checkpoint.id

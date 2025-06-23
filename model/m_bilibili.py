@@ -13,3 +13,12 @@ class CreatorQueryResponse(BaseModel):
     follower_count: str = Field(default="", title="粉丝数", description="粉丝数")
     following_count: str = Field(default="", title="关注数", description="关注数")
     content_count: str = Field(default="", title="作品数", description="作品数")
+
+
+
+class VideoIdInfo(BaseModel):
+    """
+    批量获取视频评论的请求参数
+    """
+    aid: int = Field(..., title="B站的视频ID,用户不可见的，通常在一些列表接口中返回的，爬取评论需要这个ID")
+    bvid: str = Field(..., title="B站的视频ID，用户可见的")

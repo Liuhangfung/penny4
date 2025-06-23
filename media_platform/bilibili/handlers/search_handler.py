@@ -1,26 +1,28 @@
-# 声明：本代码仅供学习和研究目的使用。使用者应遵守以下原则：  
-# 1. 不得用于任何商业用途。  
-# 2. 使用时应遵守目标平台的使用条款和robots.txt规则。  
-# 3. 不得进行大规模爬取或对平台造成运营干扰。  
-# 4. 应合理控制请求频率，避免给目标平台带来不必要的负担。   
+# 声明：本代码仅供学习和研究目的使用。使用者应遵守以下原则：
+# 1. 不得用于任何商业用途。
+# 2. 使用时应遵守目标平台的使用条款和robots.txt规则。
+# 3. 不得进行大规模爬取或对平台造成运营干扰。
+# 4. 应合理控制请求频率，避免给目标平台带来不必要的负担。
 # 5. 不得用于任何非法或不当的用途。
-#   
-# 详细许可条款请参阅项目根目录下的LICENSE文件。  
+#
+# 详细许可条款请参阅项目根目录下的LICENSE文件。
 # 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。
-from typing import List, TYPE_CHECKING
+
+from typing import List, Dict, TYPE_CHECKING
 
 import config
 import constant
+from model.m_bilibili import VideoIdInfo
 from model.m_checkpoint import Checkpoint
 from pkg.tools import utils
 from var import source_keyword_var
-from ..field import SearchSortType
+from ..field import SearchOrderType
 from .base_handler import BaseHandler
 
 if TYPE_CHECKING:
-    from ..client import XiaoHongShuClient
+    from ..client import BilibiliClient
     from repo.checkpoint.checkpoint_store import CheckpointRepoManager
-    from ..processors.note_processor import NoteProcessor
+    from ..processors.video_processor import VideoProcessor
     from ..processors.comment_processor import CommentProcessor
 
 
@@ -29,26 +31,28 @@ class SearchHandler(BaseHandler):
 
     def __init__(
             self,
-            xhs_client: "XiaoHongShuClient",
+            bili_client: "BilibiliClient",
             checkpoint_manager: "CheckpointRepoManager",
-            note_processor: "NoteProcessor",
-            comment_processor: "CommentProcessor"
+            video_processor: "VideoProcessor",
+            comment_processor: "CommentProcessor",
     ):
         """
         Initialize search handler
-        
+
         Args:
-            xhs_client: XiaoHongShu API client
+            bili_client: Bilibili API client
             checkpoint_manager: Checkpoint manager for resume functionality
-            note_processor: Note processing component
+            video_processor: Video processing component
             comment_processor: Comment processing component
         """
-        super().__init__(xhs_client, checkpoint_manager, note_processor, comment_processor)
+        super().__init__(
+            bili_client, checkpoint_manager, video_processor, comment_processor
+        )
 
     async def handle(self) -> None:
         """
         Handle search-based crawling
-        
+
         Returns:
             None
         """
@@ -82,22 +86,26 @@ class SearchHandler(BaseHandler):
 
     async def search(self) -> None:
         """
-        Search for notes and retrieve their comment information.
+        Search for videos and retrieve their comment information.
         Returns:
             None
         """
-        utils.logger.info(
-            "[SearchHandler.search] Begin search xiaohongshu keywords"
-        )
+        utils.logger.info("[SearchHandler.search] Begin search bilibili keywords")
+        bili_limit_count = 20  # bilibili limit page fixed value
+        if config.CRAWLER_MAX_NOTES_COUNT < bili_limit_count:
+            config.CRAWLER_MAX_NOTES_COUNT = bili_limit_count
+
         keyword_list = self._get_search_keyword_list()
         checkpoint = Checkpoint(
-            platform=constant.XHS_PLATFORM_NAME, mode=constant.CRALER_TYPE_SEARCH, current_search_page=1
+            platform=constant.BILIBILI_PLATFORM_NAME,
+            mode=constant.CRALER_TYPE_SEARCH,
+            current_search_page=1,
         )
 
         # 如果开启了断点续爬，则加载检查点
         if config.ENABLE_CHECKPOINT:
             lastest_checkpoint = await self.checkpoint_manager.load_checkpoint(
-                platform=constant.XHS_PLATFORM_NAME,
+                platform=constant.BILIBILI_PLATFORM_NAME,
                 mode=constant.CRALER_TYPE_SEARCH,
                 checkpoint_id=config.SPECIFIED_CHECKPOINT_ID,
             )
@@ -131,45 +139,44 @@ class SearchHandler(BaseHandler):
             while saved_note_count <= config.CRAWLER_MAX_NOTES_COUNT:
                 try:
                     utils.logger.info(
-                        f"[SearchHandler.search] search xhs keyword: {keyword}, page: {page}"
+                        f"[SearchHandler.search] search bilibili keyword: {keyword}, page: {page}"
                     )
-                    notes_res = await self.xhs_client.get_note_by_keyword(
+                    videos_res = await self.bili_client.search_video_by_keyword(
                         keyword=keyword,
                         page=page,
-                        sort=(
-                            SearchSortType(config.SORT_TYPE)
-                            if config.SORT_TYPE != ""
-                            else SearchSortType.GENERAL
-                        ),
+                        page_size=bili_limit_count,
+                        order=SearchOrderType.DEFAULT,
                     )
-                    utils.logger.info(
-                        f"[SearchHandler.search] Search notes res count:{len(notes_res.get('items', []))}"
-                    )
-                    if not notes_res or not notes_res.get("has_more", False):
-                        utils.logger.info("No more content!")
+                    video_list: List[Dict] = videos_res.get("result")
+                    if not video_list:
+                        utils.logger.info(
+                            f"[SearchHandler.search] Search video list is empty"
+                        )
                         break
-
-                    # 过滤掉推荐和热门的查询
-                    note_list = []
-                    for post_item in notes_res.get("items", []):
-                        if post_item.get("model_type") in ("rec_query", "hot_query"):
-                            continue
-                        note_list.append(post_item)
-
-                    note_id_list, xsec_tokens = await self.note_processor.batch_get_note_list(
-                        note_list=note_list,
-                        checkpoint_id=checkpoint.id
+                    utils.logger.info(
+                        f"[SearchHandler.search] Video list len: {len(video_list)}"
                     )
-                    await self.comment_processor.batch_get_note_comments(
-                        note_id_list, xsec_tokens, checkpoint_id=checkpoint.id
+
+                    # 过滤出视频类型的内容
+                    filtered_video_list = [
+                        video_item
+                        for video_item in video_list
+                        if video_item.get("type") == "video"
+                    ]
+
+                    video_infos: List[VideoIdInfo] = await self.video_processor.batch_get_video_list(
+                        video_list=filtered_video_list, checkpoint_id=checkpoint.id
+                    )
+                    await self.comment_processor.batch_get_video_comments(
+                        video_infos, checkpoint_id=checkpoint.id
                     )
 
                     page += 1
-                    saved_note_count += len(note_id_list)
+                    saved_note_count += len(video_infos)
 
                 except Exception as ex:
                     utils.logger.error(
-                        f"[SearchHandler.search] Search notes error: {ex}"
+                        f"[SearchHandler.search] Search videos error: {ex}"
                     )
                     # 发生异常了，则打印当前爬取的关键词和页码，用于后续继续爬取
                     utils.logger.info(

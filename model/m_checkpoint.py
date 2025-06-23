@@ -14,7 +14,6 @@ class CheckpointNote(BaseModel):
         "", description="当前帖子评论游标"
     )
 
-
 class Checkpoint(BaseModel):
     """
     检查点

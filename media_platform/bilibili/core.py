@@ -11,9 +11,7 @@
 
 # -*- coding: utf-8 -*-
 import asyncio
-import random
-from asyncio import Task
-from typing import Dict, List, Optional
+from typing import Optional
 
 import config
 import constant
@@ -21,17 +19,63 @@ from base.base_crawler import AbstractCrawler
 from pkg.account_pool.pool import AccountWithIpPoolManager
 from pkg.proxy.proxy_ip_pool import ProxyIpPool, create_ip_pool
 from pkg.tools import utils
-from repo.platform_save_data import bilibili as bilibili_store
-from var import crawler_type_var, source_keyword_var
+from repo.checkpoint import create_checkpoint_manager
+from repo.checkpoint.checkpoint_store import CheckpointRepoManager
+from var import crawler_type_var
 
 from .client import BilibiliClient
-from .exception import DataFetchError
-from .field import SearchOrderType
+from .handlers import SearchHandler, DetailHandler, CreatorHandler, HomefeedHandler
+from .processors import VideoProcessor, CommentProcessor
 
 
 class BilibiliCrawler(AbstractCrawler):
     def __init__(self) -> None:
         self.bili_client = BilibiliClient()
+        self.checkpoint_manager: CheckpointRepoManager = create_checkpoint_manager()
+
+        # 限制并发数
+        self.crawler_video_task_semaphore = asyncio.Semaphore(
+            config.MAX_CONCURRENCY_NUM
+        )
+        self.crawler_video_comment_semaphore = asyncio.Semaphore(
+            config.MAX_CONCURRENCY_NUM
+        )
+
+        # 初始化视频处理器，评论处理器
+        self.video_processor = VideoProcessor(
+            self.bili_client, self.checkpoint_manager, self.crawler_video_task_semaphore
+        )
+        self.comment_processor = CommentProcessor(
+            self.bili_client,
+            self.checkpoint_manager,
+            self.crawler_video_comment_semaphore,
+        )
+
+        # 初始化搜索、详情、创作者、首页推荐流处理器
+        self.search_handler = SearchHandler(
+            self.bili_client,
+            self.checkpoint_manager,
+            self.video_processor,
+            self.comment_processor,
+        )
+        self.detail_handler = DetailHandler(
+            self.bili_client,
+            self.checkpoint_manager,
+            self.video_processor,
+            self.comment_processor,
+        )
+        self.creator_handler = CreatorHandler(
+            self.bili_client,
+            self.checkpoint_manager,
+            self.video_processor,
+            self.comment_processor,
+        )
+        self.homefeed_handler = HomefeedHandler(
+            self.bili_client,
+            self.checkpoint_manager,
+            self.video_processor,
+            self.comment_processor,
+        )
 
     async def async_initialize(self) -> None:
         """
@@ -64,261 +108,25 @@ class BilibiliCrawler(AbstractCrawler):
         # 设置爬虫类型
         crawler_type_var.set(config.CRAWLER_TYPE)
 
-    async def start(self):
+    async def start(self) -> None:
         """
         Start the crawler
         Returns:
 
         """
-        if config.CRAWLER_TYPE == "search":
+        if config.CRAWLER_TYPE == constant.CRALER_TYPE_SEARCH:
             # Search for video and retrieve their comment information.
-            await self.search()
-        elif config.CRAWLER_TYPE == "detail":
+            await self.search_handler.handle()
+        elif config.CRAWLER_TYPE == constant.CRALER_TYPE_DETAIL:
             # Get the information and comments of the specified post
-            await self.get_specified_videos(config.BILI_SPECIFIED_ID_LIST)
-        elif config.CRAWLER_TYPE == "creator":
-            await self.get_creator_videos()
-        elif config.CRAWLER_TYPE == "homefeed":
-            await self.get_homefeed_videos()
+            await self.detail_handler.handle()
+        elif config.CRAWLER_TYPE == constant.CRALER_TYPE_CREATOR:
+            await self.creator_handler.handle()
+        elif config.CRAWLER_TYPE == constant.CRALER_TYPE_HOMEFEED:
+            await self.homefeed_handler.handle()
         else:
-            pass
+            raise NotImplementedError(
+                f"[BilibiliCrawler.start] Not support crawler type: {config.CRAWLER_TYPE}"
+            )
+
         utils.logger.info("[BilibiliCrawler.start] Bilibili Crawler finished ...")
-
-    async def search(self):
-        """
-        search bilibili video with keywords
-        :return:
-        """
-        utils.logger.info("[BilibiliCrawler.search] Begin search bilibli keywords")
-        bili_limit_count = 20  # bilibili limit page fixed value
-        if config.CRAWLER_MAX_NOTES_COUNT < bili_limit_count:
-            config.CRAWLER_MAX_NOTES_COUNT = bili_limit_count
-        start_page = config.START_PAGE
-        for keyword in config.KEYWORDS.split(","):
-            source_keyword_var.set(keyword)
-            utils.logger.info(
-                f"[BilibiliCrawler.search] Current search keyword: {keyword}"
-            )
-            page = 1
-            while (
-                page - start_page + 1
-            ) * bili_limit_count <= config.CRAWLER_MAX_NOTES_COUNT:
-                if page < start_page:
-                    utils.logger.info(f"[BilibiliCrawler.search] Skip page: {page}")
-                    page += 1
-                    continue
-
-                try:
-                    utils.logger.info(
-                        f"[BilibiliCrawler.search] search bilibili keyword: {keyword}, page: {page}"
-                    )
-                    video_id_list: List[str] = []
-                    videos_res = await self.bili_client.search_video_by_keyword(
-                        keyword=keyword,
-                        page=page,
-                        page_size=bili_limit_count,
-                        order=SearchOrderType.DEFAULT,
-                    )
-                    video_list: List[Dict] = videos_res.get("result")
-                    if not video_list:
-                        utils.logger.info(
-                            f"[BilibiliCrawler.search] Search note list is empty"
-                        )
-                        break
-                    utils.logger.info(
-                        f"[BilibiliCrawler.search] Video list len: {len(video_list)}"
-                    )
-                    semaphore = asyncio.Semaphore(config.MAX_CONCURRENCY_NUM)
-                    task_list = [
-                        self.get_video_info_task(
-                            aid=video_item.get("aid"), bvid="", semaphore=semaphore
-                        )
-                        for video_item in video_list
-                        if video_item.get("type") == "video"
-                    ]
-                    video_items = await asyncio.gather(*task_list)
-                    for video_item in video_items:
-                        if video_item:
-                            video_id_list.append(video_item.get("View").get("aid"))
-                            await bilibili_store.update_bilibili_video(video_item)
-                    page += 1
-                    await self.batch_get_video_comments(video_id_list)
-
-                except Exception as ex:
-                    utils.logger.error(
-                        f"[BilibiliCrawler.search] Search notes error: {ex}"
-                    )
-                    # 发生异常了，则打印当前爬取的关键词和页码，用于后续继续爬取
-                    utils.logger.info(
-                        "------------------------------------------记录当前爬取的关键词和页码------------------------------------------"
-                    )
-                    for i in range(10):
-                        utils.logger.error(
-                            f"[BilibiliCrawler.search] Current keyword: {keyword}, page: {page}"
-                        )
-                    utils.logger.info(
-                        "------------------------------------------记录当前爬取的关键词和页码---------------------------------------------------"
-                    )
-                    return
-
-    async def batch_get_video_comments(self, video_id_list: List[str]):
-        """
-        batch get video comments
-        :param video_id_list:
-        :return:
-        """
-        if not config.ENABLE_GET_COMMENTS:
-            utils.logger.info(
-                f"[BilibiliCrawler.batch_get_note_comments] Crawling comment mode is not enabled"
-            )
-            return
-
-        utils.logger.info(
-            f"[BilibiliCrawler.batch_get_video_comments] video ids:{video_id_list}"
-        )
-        semaphore = asyncio.Semaphore(config.MAX_CONCURRENCY_NUM)
-        task_list: List[Task] = []
-        for video_id in video_id_list:
-            task = asyncio.create_task(
-                self.get_comments_async_task(video_id, semaphore), name=video_id
-            )
-            task_list.append(task)
-        await asyncio.gather(*task_list)
-
-    async def get_comments_async_task(
-        self, video_id: str, semaphore: asyncio.Semaphore
-    ):
-        """
-        get comment for video id
-        :param video_id:
-        :param semaphore:
-        :return:
-        """
-        async with semaphore:
-            try:
-                utils.logger.info(
-                    f"[BilibiliCrawler.get_comments_async_task] begin get video_id: {video_id} comments ..."
-                )
-                await self.bili_client.get_video_all_comments(
-                    video_id=video_id,
-                    crawl_interval=random.random(),
-                    callback=bilibili_store.batch_update_bilibili_video_comments,
-                )
-            except DataFetchError as ex:
-                utils.logger.error(
-                    f"[BilibiliCrawler.get_comments_async_task] get video_id: {video_id} comment error: {ex}"
-                )
-            except Exception as e:
-                utils.logger.error(
-                    f"[BilibiliCrawler.get_comments_async_task] may be been blocked, err:{e}"
-                )
-
-    async def get_creator_videos(self):
-        """
-        get creator videos
-        Returns:
-
-        """
-
-        for creator_id in config.BILI_CREATOR_ID_LIST:
-            creator_info = await self.bili_client.get_creator_info(creator_id)
-            utils.logger.info(
-                f"[BilibiliCrawler.get_creator_videos] creator_info: {creator_info}"
-            )
-            await bilibili_store.update_bilibili_creator(creator_info)
-            utils.logger.info(
-                f"[BilibiliCrawler.get_creator_videos] begin get creator_id: {creator_id} videos ..."
-            )
-            creator_video_list = await self.bili_client.get_all_videos_by_creator(
-                creator_id
-            )
-            video_bvids_list = [video.get("bvid") for video in creator_video_list]
-            await self.get_specified_videos(video_bvids_list)
-
-    async def get_specified_videos(self, bvids_list: List[str]):
-        """
-        get specified videos info
-        :return:
-        """
-        semaphore = asyncio.Semaphore(config.MAX_CONCURRENCY_NUM)
-        task_list = [
-            self.get_video_info_task(aid=0, bvid=video_id, semaphore=semaphore)
-            for video_id in bvids_list
-        ]
-        video_details = await asyncio.gather(*task_list)
-        video_aids_list = []
-        for video_detail in video_details:
-            if video_detail:
-                video_item_view: Dict = video_detail.get("View")
-                video_aid: str = video_item_view.get("aid")
-                if video_aid:
-                    video_aids_list.append(video_aid)
-                await bilibili_store.update_bilibili_video(video_detail)
-        await self.batch_get_video_comments(video_aids_list)
-
-    async def get_video_info_task(
-        self, aid: int, bvid: str, semaphore: asyncio.Semaphore
-    ) -> Optional[Dict]:
-        """
-        Get video detail task
-        :param aid:
-        :param bvid:
-        :param semaphore:
-        :return:
-        """
-        async with semaphore:
-            try:
-                result = await self.bili_client.get_video_info(aid=aid, bvid=bvid)
-                return result
-            except DataFetchError as ex:
-                utils.logger.error(
-                    f"[BilibiliCrawler.get_video_info_task] Get video detail error: {ex}"
-                )
-                return None
-            except KeyError as ex:
-                utils.logger.error(
-                    f"[BilibiliCrawler.get_video_info_task] have not fund note detail video_id:{bvid}, err: {ex}"
-                )
-                return None
-
-    async def get_homefeed_videos(self):
-        """
-        Get homefeed videos and comments
-        """
-        utils.logger.info(
-            "[BilibiliCrawler.get_homefeed_videos] Begin get bilibili homefeed videos"
-        )
-        per_page_count = 12
-        current_page_idx = 1
-        save_video_count = 0
-        while save_video_count <= config.CRAWLER_MAX_NOTES_COUNT:
-            homefeed_videos_res = await self.bili_client.get_homefeed_videos(
-                page_count=per_page_count, fresh_idx=current_page_idx
-            )
-            videos_list: List[Dict] = homefeed_videos_res.get("item", [])
-            if not videos_list:
-                utils.logger.info(
-                    f"[BilibiliCrawler.get_homefeed_videos] No more content!"
-                )
-                break
-
-            # goto: 目标类型，av: 视频 ogv: 边栏 live: 直播
-            # show_info: 展示信息: 1: 普通视频 0: 直播
-            filtered_videos_list = [
-                video
-                for video in videos_list
-                if video.get("goto") == "av" and video.get("show_info") == 1
-            ]
-
-            # 复用get_specified_videos方法获取视频详情
-            video_bvids_list = [video.get("bvid") for video in filtered_videos_list]
-            await self.get_specified_videos(video_bvids_list)
-            current_page_idx += 1
-            save_video_count += len(filtered_videos_list)
-            utils.logger.info(
-                f"[BilibiliCrawler.get_homefeed_videos] Get homefeed videos, current_page_idx: {current_page_idx}, per_page_count: {per_page_count}, save_video_count: {save_video_count}"
-            )
-
-        utils.logger.info(
-            "[BilibiliCrawler.get_homefeed_videos] Bilibili homefeed videos crawler finished ..."
-        )

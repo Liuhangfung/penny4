@@ -396,6 +396,7 @@ class CheckpointRepoManager:
         is_success_crawled: bool,
         is_success_crawled_comments: bool,
         current_note_comment_cursor: Optional[str] = None,
+        extra_params_info: Optional[Dict[str, Any]] = None,
     ) :
         """更新已爬取的帖子, 需要协程安全
 
@@ -405,6 +406,7 @@ class CheckpointRepoManager:
             is_success_crawled (bool): 是否成功爬取
             is_success_crawled_comments (bool): 是否成功爬取评论
             current_note_comment_cursor (Optional[str]): 当前帖子评论游标
+            extra_params_info (Optional[Dict[str, Any]]): 额外参数信息
         """
         async with self.crawler_note_lock:
             checkpoint = await self.load_checkpoint_by_id(checkpoint_id)
@@ -417,6 +419,8 @@ class CheckpointRepoManager:
                     note.is_success_crawled = is_success_crawled
                     note.is_success_crawled_comments = is_success_crawled_comments
                     note.current_note_comment_cursor = current_note_comment_cursor
+                    if extra_params_info:
+                        note.extra_params_info = extra_params_info
                     break
 
             await self.update_checkpoint(checkpoint)
@@ -476,6 +480,32 @@ class CheckpointRepoManager:
                 return note.is_success_crawled
 
         return False
+
+
+    async def get_note_info_from_checkpont(self, checkpoint_id: str, note_id: str) -> Optional[CheckpointNote]:
+        """
+        从检查点获取帖子信息
+
+        Args:
+            checkpoint_id:
+            note_id:
+
+        Returns:
+
+        """
+        checkpoint = await self.load_checkpoint_by_id(checkpoint_id)
+        if checkpoint is None:
+            return None
+
+        if checkpoint.crawled_note_list is None:
+            return None
+
+        for note in checkpoint.crawled_note_list:
+            if note.note_id == note_id:
+                return note
+
+        return None
+
 
 
 

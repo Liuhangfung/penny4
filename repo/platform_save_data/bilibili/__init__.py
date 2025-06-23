@@ -54,9 +54,11 @@ async def update_bilibili_video(video_item: Dict):
     video_item_view: Dict = video_item.get("View")
     video_user_info: Dict = video_item_view.get("owner")
     video_item_stat: Dict = video_item_view.get("stat")
-    video_id = str(video_item_view.get("aid"))
+    aid = str(video_item_view.get("aid"))
+    bvid = str(video_item_view.get("bvid"))
+
     save_content_item = {
-        "video_id": video_id,
+        "video_id": aid,
         "video_type": "video",
         "title": video_item_view.get("title", "")[:500],
         "desc": video_item_view.get("desc", "")[:500],
@@ -69,12 +71,13 @@ async def update_bilibili_video(video_item: Dict):
         "video_danmaku": str(video_item_stat.get("danmaku", "")),
         "video_comment": str(video_item_stat.get("reply", "")),
         "last_modify_ts": utils.get_current_timestamp(),
-        "video_url": f"https://www.bilibili.com/video/av{video_id}",
+        "video_url": f"https://www.bilibili.com/video/av{aid}",
         "video_cover_url": video_item_view.get("pic", ""),
         "source_keyword": source_keyword_var.get(),
+        "bvid":bvid
     }
     utils.logger.info(
-        f"[store.bilibili.update_bilibili_video] bilibili video id:{video_id}, title:{save_content_item.get('title')}"
+        f"[store.bilibili.update_bilibili_video] bilibili bvid: {bvid}, title:{save_content_item.get('title')}"
     )
     await BiliStoreFactory.create_store().store_content(content_item=save_content_item)
 

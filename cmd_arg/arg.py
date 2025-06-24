@@ -8,56 +8,131 @@
 # 详细许可条款请参阅项目根目录下的LICENSE文件。
 # 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。
 
+import sys
+from typing import Optional
+from enum import Enum
 
-import argparse
+import typer
+from typing_extensions import Annotated
 
 import config
 import constant
 
 
+class PlatformEnum(str, Enum):
+    """支持的媒体平台枚举"""
+    XHS = constant.XHS_PLATFORM_NAME
+    DOUYIN = constant.DOUYIN_PLATFORM_NAME
+    KUAISHOU = constant.KUAISHOU_PLATFORM_NAME
+    WEIBO = constant.WEIBO_PLATFORM_NAME
+    BILIBILI = constant.BILIBILI_PLATFORM_NAME
+    TIEBA = constant.TIEBA_PLATFORM_NAME
+    ZHIHU = constant.ZHIHU_PLATFORM_NAME
+
+
+class CrawlerTypeEnum(str, Enum):
+    """爬虫类型枚举"""
+    SEARCH = constant.CRALER_TYPE_SEARCH
+    DETAIL = constant.CRALER_TYPE_DETAIL
+    CREATOR = constant.CRALER_TYPE_CREATOR
+    HOMEFEED = constant.CRALER_TYPE_HOMEFEED
+
+
+class SaveDataOptionEnum(str, Enum):
+    """数据保存选项枚举"""
+    CSV = "csv"
+    DB = "db"
+    JSON = "json"
+
+
 def parse_cmd():
-    # 读取command arg
-    parser = argparse.ArgumentParser(description="Media crawler program.")
-    parser.add_argument(
-        "--platform",
-        type=str,
-        help="Media platform select (xhs | dy | ks | bili | wb | tieba | zhihu)",
-        choices=[
-            constant.XHS_PLATFORM_NAME,
-            constant.DOUYIN_PLATFORM_NAME,
-            constant.KUAISHOU_PLATFORM_NAME,
-            constant.WEIBO_PLATFORM_NAME,
-            constant.BILIBILI_PLATFORM_NAME,
-            constant.TIEBA_PLATFORM_NAME,
-            constant.ZHIHU_PLATFORM_NAME,
-        ],
-        default=config.PLATFORM,
-    )
-    parser.add_argument(
-        "--type",
-        type=str,
-        help="crawler type (search | detail | creator | homefeed)",
-        choices=["search", "detail", "creator", "homefeed"],
-        default=config.CRAWLER_TYPE,
-    )
-    parser.add_argument(
-        "--keywords", type=str, help="please input keywords", default=config.KEYWORDS
-    )
-    parser.add_argument(
-        "--start", type=int, help="number of start page", default=config.START_PAGE
-    )
-    parser.add_argument(
-        "--save_data_option",
-        type=str,
-        help="where to save the data (csv or db or json)",
-        choices=["csv", "db", "json"],
-        default=config.SAVE_DATA_OPTION,
-    )
+    """
+    解析命令行参数并更新配置
 
-    args = parser.parse_args()
+    这个函数保持与原有 argparse 版本的完全兼容性，
+    同时提供更好的用户体验和错误处理。
+    """
+    def main(
+        platform: Annotated[
+            PlatformEnum,
+            typer.Option(
+                "--platform",
+                help="🎯 选择媒体平台 (xhs=小红书, dy=抖音, ks=快手, bili=B站, wb=微博, tieba=贴吧, zhihu=知乎)"
+            )
+        ] = PlatformEnum.XHS,
 
-    # override config
-    config.PLATFORM = args.platform
-    config.CRAWLER_TYPE = args.type
-    config.START_PAGE = args.start
-    config.KEYWORDS = args.keywords
+        crawler_type: Annotated[
+            CrawlerTypeEnum,
+            typer.Option(
+                "--type",
+                help="🔍 爬虫类型 (search=关键词搜索, detail=帖子详情, creator=创作者主页, homefeed=首页推荐)"
+            )
+        ] = CrawlerTypeEnum.SEARCH,
+
+        enable_checkpoint: Annotated[
+            bool,
+            typer.Option(
+                "--enable_checkpoint/--no-enable_checkpoint",
+                help="💾 是否启用断点续爬功能"
+            )
+        ] = config.ENABLE_CHECKPOINT,
+
+        checkpoint_id: Annotated[
+            str,
+            typer.Option(
+                "--checkpoint_id",
+                help="🔖 指定断点续爬的检查点ID，如果为空则加载最新的检查点"
+            )
+        ] = config.SPECIFIED_CHECKPOINT_ID,
+
+        keywords: Annotated[
+            str,
+            typer.Option(
+                "--keywords",
+                help="🔤 搜索关键词，多个关键词用逗号分隔"
+            )
+        ] = config.KEYWORDS,
+
+    ):
+        """
+        🚀 MediaCrawlerPro - 多平台媒体爬虫工具
+
+        支持小红书、抖音、快手、B站、微博、贴吧、知乎等平台的数据爬取。
+
+        [bold green]示例用法:[/bold green]
+
+        • 爬取小红书搜索结果：
+          python main.py --platform xhs --type search --keywords "深度学习,AI"
+
+        • 启用断点续爬：
+          python main.py --platform dy --type creator --enable_checkpoint
+
+        • 禁用断点续爬：
+          python main.py --platform wb --type detail --no-enable_checkpoint
+
+        """
+        # 更新全局配置，保持与原有逻辑的兼容性
+        config.PLATFORM = platform.value
+        config.CRAWLER_TYPE = crawler_type.value
+        config.KEYWORDS = keywords
+        config.ENABLE_CHECKPOINT = enable_checkpoint
+        config.SPECIFIED_CHECKPOINT_ID = checkpoint_id
+
+
+    # 检查是否是帮助命令
+    import sys
+    if '--help' in sys.argv or '-h' in sys.argv:
+        # 如果是帮助命令，直接运行 typer 并退出
+        typer.run(main)
+        return
+
+    # 使用 typer.run 但捕获 SystemExit 以避免程序提前退出
+    try:
+        typer.run(main)
+    except SystemExit as e:
+        # 如果是参数错误导致的退出，重新抛出
+        if e.code != 0:
+            raise
+        # 如果是正常的参数解析完成，继续执行后续代码
+        pass
+

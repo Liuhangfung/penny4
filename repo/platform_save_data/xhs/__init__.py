@@ -59,6 +59,9 @@ def get_video_url_arr(note_item: Dict) -> List:
 
 
 async def update_xhs_note(note_item: Dict):
+    if not note_item:
+        return
+
     note_id = note_item.get("note_id")
     user_info = note_item.get("user", {})
     interact_info = note_item.get("interact_info", {})
@@ -95,7 +98,10 @@ async def update_xhs_note(note_item: Dict):
         "note_url": f"https://www.xiaohongshu.com/explore/{note_id}?xsec_token={note_item.get('xsec_token')}&xsec_source=pc_search",
         "source_keyword": source_keyword_var.get(),
     }
-    utils.logger.info(f"[store.xhs.update_xhs_note] xhs note: {local_db_item}")
+    print_title = local_db_item.get("title")[:30] or local_db_item.get("desc")[:30]
+    utils.logger.info(
+        f"[store.xhs.update_xhs_note] xhs note, id: {note_id}, title: {print_title}"
+    )
     await XhsStoreFactory.create_store().store_content(local_db_item)
 
 
@@ -139,7 +145,7 @@ async def update_xhs_note_comment(
         "note_url": f"https://www.xiaohongshu.com/explore/{note_id}?xsec_token={note_xsec_token}&xsec_source=pc_search",
     }
     utils.logger.info(
-        f"[store.xhs.update_xhs_note_comment] xhs note comment:{local_db_item}"
+        f"[store.xhs.update_xhs_note_comment] xhs note comment, note_id: {note_id}, comment_id: {comment_id}"
     )
     await XhsStoreFactory.create_store().store_comment(local_db_item)
 

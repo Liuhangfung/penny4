@@ -8,42 +8,78 @@
 # 详细许可条款请参阅项目根目录下的LICENSE文件。
 # 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。
 
-
-# -*- coding: utf-8 -*-
-# @Author  : relakkes@gmail.com
-# @Time    : 2023/12/23 15:41
-# @Desc    : 微博爬虫主流程代码
 import asyncio
-import random
-from asyncio import Task
-from typing import Dict, List, Optional
+from typing import Optional
 
 import config
 import constant
 from base.base_crawler import AbstractCrawler
 from pkg.account_pool.pool import AccountWithIpPoolManager
+from repo.checkpoint import create_checkpoint_manager
+from repo.checkpoint.checkpoint_store import CheckpointRepoManager
 from pkg.proxy.proxy_ip_pool import ProxyIpPool, create_ip_pool
 from pkg.tools import utils
-from repo.platform_save_data import weibo as weibo_store
-from var import crawler_type_var, source_keyword_var
+from var import crawler_type_var
 
 from .client import WeiboClient
-from .exception import DataFetchError
-from .field import SearchType
-from .help import filter_search_result_card
+from .handlers import SearchHandler, DetailHandler, CreatorHandler
+from .processors import NoteProcessor, CommentProcessor
 
 
 class WeiboCrawler(AbstractCrawler):
-
-    def __init__(self):
+    def __init__(self) -> None:
         self.wb_client = WeiboClient()
+        self.checkpoint_manager: CheckpointRepoManager = create_checkpoint_manager()
 
-    async def async_initialize(self) -> None:
+        # 限制并发数
+        self.crawler_note_task_semaphore = asyncio.Semaphore(config.MAX_CONCURRENCY_NUM)
+        self.crawler_note_comment_semaphore = asyncio.Semaphore(
+            config.MAX_CONCURRENCY_NUM
+        )
+
+        # 初始化帖子处理器，评论处理器
+        self.note_processor = NoteProcessor(
+            self.wb_client,
+            self.checkpoint_manager,
+            self.crawler_note_task_semaphore
+        )
+        self.comment_processor = CommentProcessor(
+            self.wb_client,
+            self.checkpoint_manager,
+            self.crawler_note_comment_semaphore
+        )
+
+        # 初始化搜索、详情、创作者处理器
+        self.search_handler = SearchHandler(
+            self.wb_client,
+            self.checkpoint_manager,
+            self.note_processor,
+            self.comment_processor
+        )
+        self.detail_handler = DetailHandler(
+            self.wb_client,
+            self.checkpoint_manager,
+            self.note_processor,
+            self.comment_processor
+        )
+        self.creator_handler = CreatorHandler(
+            self.wb_client,
+            self.checkpoint_manager,
+            self.note_processor,
+            self.comment_processor
+        )
+
+    async def async_initialize(self):
         """
         Asynchronous Initialization
         Returns:
 
         """
+        utils.logger.info(
+            "[WeiboCrawler.async_initialize] Begin async initialize"
+        )
+
+        # 账号池和IP池的初始化
         proxy_ip_pool: Optional[ProxyIpPool] = None
         if config.ENABLE_IP_PROXY:
             # weibo对代理验证中等，可以选择长时长的IP，比如1-5分钟一个IP
@@ -63,226 +99,29 @@ class WeiboCrawler(AbstractCrawler):
         self.wb_client.account_with_ip_pool = account_with_ip_pool
         await self.wb_client.update_account_info()
 
+        # 设置爬虫类型
         crawler_type_var.set(config.CRAWLER_TYPE)
 
-    async def start(self):
+    async def start(self) -> None:
         """
         Start the crawler
         Returns:
 
         """
-        if config.CRAWLER_TYPE == "search":
-            # Search for video and retrieve their comment information.
-            await self.search()
-        elif config.CRAWLER_TYPE == "detail":
+        if config.CRAWLER_TYPE == constant.CRALER_TYPE_SEARCH:
+            # Search for notes and retrieve their comment information.
+            await self.search_handler.handle()
+        elif config.CRAWLER_TYPE == constant.CRALER_TYPE_DETAIL:
             # Get the information and comments of the specified post
-            await self.get_specified_notes()
-        elif config.CRAWLER_TYPE == "creator":
+            await self.detail_handler.handle()
+        elif config.CRAWLER_TYPE == constant.CRALER_TYPE_CREATOR:
             # Get creator's information and their notes and comments
-            await self.get_creators_and_notes()
+            await self.creator_handler.handle()
         else:
-            pass
+            raise NotImplementedError(
+                f"[WeiboCrawler.start] Not support crawler type: {config.CRAWLER_TYPE}"
+            )
+
         utils.logger.info("[WeiboCrawler.start] Weibo Crawler finished ...")
 
-    async def search(self):
-        """
-        search weibo note with keywords
-        :return:
-        """
-        utils.logger.info("[WeiboCrawler.search] Begin search weibo keywords")
-        weibo_limit_count = 10  # weibo limit page fixed value
-        if config.CRAWLER_MAX_NOTES_COUNT < weibo_limit_count:
-            config.CRAWLER_MAX_NOTES_COUNT = weibo_limit_count
-        start_page = config.START_PAGE
-        for keyword in config.KEYWORDS.split(","):
-            source_keyword_var.set(keyword)
-            utils.logger.info(
-                f"[WeiboCrawler.search] Current search keyword: {keyword}"
-            )
-            page = 1
-            while (
-                page - start_page + 1
-            ) * weibo_limit_count <= config.CRAWLER_MAX_NOTES_COUNT:
-                if page < start_page:
-                    utils.logger.info(f"[WeiboCrawler.search] Skip page: {page}")
-                    page += 1
-                    continue
-                try:
-                    utils.logger.info(
-                        f"[WeiboCrawler.search] search weibo keyword: {keyword}, page: {page}"
-                    )
-                    search_res = await self.wb_client.get_note_by_keyword(
-                        keyword=keyword, page=page, search_type=SearchType.DEFAULT
-                    )
-                    note_id_list: List[str] = []
-                    note_list = filter_search_result_card(search_res.get("cards", []))
-                    for note_item in note_list:
-                        if note_item:
-                            mblog: Dict = note_item.get("mblog", {})
-                            if mblog:
-                                note_id_list.append(mblog.get("id", ""))
-                                await weibo_store.update_weibo_note(note_item)
 
-                    page += 1
-                    await self.batch_get_notes_comments(note_id_list)
-
-                except Exception as ex:
-                    utils.logger.error(
-                        f"[WeiboCrawler.search] Search note  error: {ex}"
-                    )
-                    # 发生异常了，则打印当前爬取的关键词和页码，用于后续继续爬取
-                    utils.logger.info(
-                        "------------------------------------------记录当前爬取的关键词和页码------------------------------------------"
-                    )
-                    for i in range(10):
-                        utils.logger.error(
-                            f"[WeiboCrawler.search] Current keyword: {keyword}, page: {page}"
-                        )
-                    utils.logger.info(
-                        "------------------------------------------记录当前爬取的关键词和页码---------------------------------------------------"
-                    )
-                    return
-
-    async def get_specified_notes(self):
-        """
-        get specified notes info
-        Returns:
-
-        """
-        semaphore = asyncio.Semaphore(config.MAX_CONCURRENCY_NUM)
-        task_list = [
-            self.get_note_info_task(note_id=note_id, semaphore=semaphore)
-            for note_id in config.WEIBO_SPECIFIED_ID_LIST
-        ]
-        video_details = await asyncio.gather(*task_list)
-        for note_item in video_details:
-            if note_item:
-                await weibo_store.update_weibo_note(note_item)
-        await self.batch_get_notes_comments(config.WEIBO_SPECIFIED_ID_LIST)
-
-    async def get_note_info_task(
-        self, note_id: str, semaphore: asyncio.Semaphore
-    ) -> Optional[Dict]:
-        """
-        get note detail task
-        Args:
-            note_id:
-            semaphore:
-
-        Returns:
-
-        """
-        async with semaphore:
-            try:
-                result = await self.wb_client.get_note_info_by_id(note_id)
-                return result
-            except DataFetchError as ex:
-                utils.logger.error(
-                    f"[WeiboCrawler.get_note_info_task] Get note detail error: {ex}"
-                )
-                return None
-            except KeyError as ex:
-                utils.logger.error(
-                    f"[WeiboCrawler.get_note_info_task] have not fund note detail note_id:{note_id}, err: {ex}"
-                )
-                return None
-
-    async def batch_get_notes_comments(self, note_id_list: List[str]):
-        """
-        batch get notes comments
-        Args:
-            note_id_list:
-
-        Returns:
-
-        """
-        if not config.ENABLE_GET_COMMENTS:
-            utils.logger.info(
-                f"[WeiboCrawler.batch_get_note_comments] Crawling comment mode is not enabled"
-            )
-            return
-
-        utils.logger.info(
-            f"[WeiboCrawler.batch_get_notes_comments] note ids:{note_id_list}"
-        )
-        semaphore = asyncio.Semaphore(config.MAX_CONCURRENCY_NUM)
-        task_list: List[Task] = []
-        for note_id in note_id_list:
-            task = asyncio.create_task(
-                self.get_note_comments(note_id, semaphore), name=note_id
-            )
-            task_list.append(task)
-        await asyncio.gather(*task_list)
-
-    async def get_note_comments(self, note_id: str, semaphore: asyncio.Semaphore):
-        """
-        get note comments by note id
-        Args:
-            note_id:
-            semaphore:
-
-        Returns:
-
-        """
-        async with semaphore:
-            try:
-                utils.logger.info(
-                    f"[WeiboCrawler.get_note_comments] begin get note_id: {note_id} comments ..."
-                )
-                await self.wb_client.get_note_all_comments(
-                    note_id=note_id,
-                    crawl_interval=random.randint(
-                        1, 3
-                    ),  # 微博对API的限流比较严重，所以延时提高一些
-                    callback=weibo_store.batch_update_weibo_note_comments,
-                )
-            except DataFetchError as ex:
-                utils.logger.error(
-                    f"[WeiboCrawler.get_note_comments] get note_id: {note_id} comment error: {ex}"
-                )
-            except Exception as e:
-                utils.logger.error(
-                    f"[WeiboCrawler.get_note_comments] may be been blocked, err:{e}"
-                )
-
-    async def get_creators_and_notes(self) -> None:
-        """
-        Get creator's information and their notes and comments
-        Returns:
-
-        """
-        utils.logger.info(
-            "[WeiboCrawler.get_creators_and_notes] Begin get weibo creators"
-        )
-        for user_id in config.WEIBO_CREATOR_ID_LIST:
-            createor_info_res: Dict = await self.wb_client.get_creator_info_by_id(
-                creator_id=user_id
-            )
-            if createor_info_res:
-                createor_info: Dict = createor_info_res.get("userInfo", {})
-                utils.logger.info(
-                    f"[WeiboCrawler.get_creators_and_notes] creator info: {createor_info}"
-                )
-                if not createor_info:
-                    raise DataFetchError("Get creator info error")
-                await weibo_store.save_creator(user_id, user_info=createor_info)
-
-                # Get all note information of the creator
-                all_notes_list = await self.wb_client.get_all_notes_by_creator_id(
-                    creator_id=user_id,
-                    container_id=createor_info_res.get("lfid_container_id"),
-                    crawl_interval=0,
-                    callback=weibo_store.batch_update_weibo_notes,
-                )
-
-                note_ids = [
-                    note_item.get("mblog", {}).get("id")
-                    for note_item in all_notes_list
-                    if note_item.get("mblog", {}).get("id")
-                ]
-                await self.batch_get_notes_comments(note_ids)
-
-            else:
-                utils.logger.error(
-                    f"[WeiboCrawler.get_creators_and_notes] get creator info error, creator_id:{user_id}"
-                )

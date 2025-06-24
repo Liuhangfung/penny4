@@ -389,7 +389,7 @@ class BilibiliClient(AbstractApiClient):
         """
         获取视频评论
         Args:
-            video_id: 视频 ID
+            video_id: 视频 ID (aid)
             order_mode: 排序方式
             next_page: 评论页选择
 
@@ -417,7 +417,7 @@ class BilibiliClient(AbstractApiClient):
         """
         获取
         Args:
-            video_id: 子评论的视频ID
+            video_id: 子评论的视频ID (aid)
             root_comment_id: 根评论ID
             pn:
             ps:
@@ -436,104 +436,6 @@ class BilibiliClient(AbstractApiClient):
             "root": root_comment_id,
         }
         return await self.get(uri, params)
-
-    async def get_video_all_comments(
-        self,
-        video_id: str,
-        crawl_interval: float = 1.0,
-        callback: Optional[Callable] = None,
-    ):
-        """
-        获取视频所有评论
-        Args:
-            video_id: 视频ID
-            crawl_interval: 爬取间隔
-            callback:
-
-        Returns:
-
-        """
-
-        result = []
-        is_end = False
-        next_page = 0
-        while not is_end:
-            comments_res = await self.get_video_comments(
-                video_id, CommentOrderType.DEFAULT, next_page
-            )
-            cursor_info: Dict = comments_res.get("cursor")
-            comment_list: List[Dict] = comments_res.get("replies", [])
-            is_end = cursor_info.get("is_end")
-            next_page = cursor_info.get("next")
-            if callback:
-                await callback(video_id, comment_list)
-            await asyncio.sleep(crawl_interval)
-            result.extend(comment_list)
-            if (
-                PER_NOTE_MAX_COMMENTS_COUNT
-                and len(result) >= PER_NOTE_MAX_COMMENTS_COUNT
-            ):
-                utils.logger.info(
-                    f"[BilibiliClient.get_note_all_comments] The number of comments exceeds the limit: {PER_NOTE_MAX_COMMENTS_COUNT}"
-                )
-                break
-            sub_comments = await self.get_comments_all_sub_comments(
-                video_id, comment_list, crawl_interval, callback
-            )
-            result.extend(sub_comments)
-        return result
-
-    async def get_comments_all_sub_comments(
-        self,
-        video_id: str,
-        comments: List[Dict],
-        crawl_interval: float = 1.0,
-        callback: Optional[Callable] = None,
-    ) -> List[Dict]:
-        """
-        获取指定一级评论下的所有二级评论, 该方法会一直查找一级评论下的所有二级评论信息
-        Args:
-            video_id: 视频ID
-            comments: 评论列表
-            crawl_interval: 爬取一次评论的延迟单位（秒）
-            callback: 一次评论爬取结束后
-
-        Returns:
-
-        """
-        if not config.ENABLE_GET_SUB_COMMENTS:
-            return []
-
-        if not comments:
-            return []
-
-        result = []
-        for comment in comments:
-            if comment.get("rcount", 0) == 0:
-                continue
-            sub_comment_has_more = True
-            rpid = comment.get("rpid")
-            page_num = 1
-            page_size = 10
-            while sub_comment_has_more:
-                sub_comments_res = await self.get_video_sub_comments(
-                    video_id=video_id,
-                    root_comment_id=rpid,
-                    pn=page_num,
-                    ps=page_size,
-                    order_mode=CommentOrderType.DEFAULT,
-                )
-                sub_comments = sub_comments_res.get("replies", [])
-                if callback:
-                    await callback(video_id, sub_comments)
-                await asyncio.sleep(crawl_interval)
-                result.extend(sub_comments)
-                sub_comment_has_more = (
-                    sub_comments_res.get("page").get("count") > page_num * page_size
-                )
-                page_num += 1
-
-        return result
 
     async def get_up_info(self, up_id: str) -> Dict:
         """

@@ -66,14 +66,25 @@ class XiaoHongShuClient(AbstractApiClient):
 
     @property
     def headers(self):
-        return {
-            "Content-Type": "application/json;charset=UTF-8",
-            "Accept": "application/json, text/plain, */*",
-            "Cookie": self._cookies,
+        headers = {
+            "accept": "application/json, text/plain, */*",
+            "accept-language": "zh-CN,zh;q=0.9",
+            "cache-control": "no-cache",
+            "content-type": "application/json;charset=UTF-8",
             "origin": "https://www.xiaohongshu.com",
+            "pragma": "no-cache",
+            "priority": "u=1, i",
             "referer": "https://www.xiaohongshu.com/",
-            "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
+            "sec-ch-ua": '"Chromium";v="136", "Google Chrome";v="136", "Not.A/Brand";v="99"',
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": '"Windows"',
+            "sec-fetch-dest": "empty",
+            "sec-fetch-mode": "cors",
+            "sec-fetch-site": "same-site",
+            "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36",
+            "cookie": self._cookies,
         }
+        return headers
 
     @property
     def _proxies(self):
@@ -145,12 +156,13 @@ class XiaoHongShuClient(AbstractApiClient):
             cookies=self._cookies,
         )
         xhs_sign_resp = await self._sign_client.xiaohongshu_sign(sign_req)
+        xmns = xhs_sign_resp.data.x_mns
         headers = {
-            "X-S": xhs_sign_resp.data.x_s,
-            "X-T": xhs_sign_resp.data.x_t,
-            "x-S-Common": xhs_sign_resp.data.x_s_common,
+            "X-s": xhs_sign_resp.data.x_s,
+            "X-t": xhs_sign_resp.data.x_t,
+            "x-s-common": xhs_sign_resp.data.x_s_common,
             "X-B3-Traceid": xhs_sign_resp.data.x_b3_traceid,
-            "X-Mns": xhs_sign_resp.data.x_mns,
+            "X-Mns": xmns,
         }
         headers.update(self.headers)
         return headers
@@ -206,8 +218,8 @@ class XiaoHongShuClient(AbstractApiClient):
 
         if response.status_code == 471 or response.status_code == 461:
             # someday someone maybe will bypass captcha
-            verify_type = response.headers["Verifytype"]
-            verify_uuid = response.headers["Verifyuuid"]
+            verify_type = response.headers.get("Verifytype", "")
+            verify_uuid = response.headers.get("Verifyuuid", "")
             raise Exception(
                 f"出现验证码，请求失败，Verifytype: {verify_type}，Verifyuuid: {verify_uuid}, Response: {response}"
             )
@@ -239,7 +251,7 @@ class XiaoHongShuClient(AbstractApiClient):
         """
         final_uri = uri
         if isinstance(params, dict):
-            final_uri = f"{uri}?" f"{urlencode(params)}"
+            final_uri = f"{uri}?{urlencode(params)}"
         try:
             headers = await self._pre_headers(final_uri)
             res = await self.request(
@@ -376,6 +388,7 @@ class XiaoHongShuClient(AbstractApiClient):
             "sort": sort.value,
             "note_type": note_type.value,
         }
+
         return await self.post(uri, data)
 
     async def get_note_by_id(
@@ -612,7 +625,7 @@ class XiaoHongShuClient(AbstractApiClient):
         cursor: str,
         page_size: int = 30,
         xsec_token: str = "",
-        xsec_source: str = "",
+        xsec_source: str = "pc_feed",
     ) -> Dict:
         """
         获取博主的笔记
@@ -626,69 +639,8 @@ class XiaoHongShuClient(AbstractApiClient):
         Returns:
 
         """
-        uri = "/api/sns/web/v1/user_posted"
-        data = {
-            "user_id": creator,
-            "cursor": cursor,
-            "num": page_size,
-            "image_formats": "jpg,webp,avif",
-            "xsec_token": xsec_token,
-            "xsec_source": xsec_source,
-        }
-        return await self.get(uri, data)
-
-    async def get_all_notes_by_creator(
-        self,
-        user_id: str,
-        crawl_interval: float = 1.0,
-        callback: Optional[Callable] = None,
-        xsec_token: str = "",
-        xsec_source: str = "",
-    ) -> List[Dict]:
-        """
-        获取指定用户下的所有发过的帖子，该方法会一直查找一个用户下的所有帖子信息
-        Args:
-            user_id: 用户ID
-            crawl_interval: 爬取一次的延迟单位（秒）
-            callback: 一次分页爬取结束后的更新回调函数
-            xsec_token: 验证token
-            xsec_source: 渠道来源
-
-        Returns:
-
-        """
-        result = []
-        notes_has_more = True
-        notes_cursor = ""
-        while notes_has_more:
-            notes_res = await self.get_notes_by_creator(
-                user_id,
-                notes_cursor,
-                xsec_token=xsec_token,
-                xsec_source=xsec_source,
-            )
-            if not notes_res:
-                utils.logger.error(
-                    f"[XiaoHongShuClient.get_notes_by_creator] The current creator may have been banned by xhs, so they cannot access the data."
-                )
-                break
-            notes_has_more = notes_res.get("has_more", False)
-            notes_cursor = notes_res.get("cursor", "")
-            if "notes" not in notes_res:
-                utils.logger.info(
-                    f"[XiaoHongShuClient.get_all_notes_by_creator] No 'notes' key found in response: {notes_res}"
-                )
-                break
-
-            notes = notes_res["notes"]
-            utils.logger.info(
-                f"[XiaoHongShuClient.get_all_notes_by_creator] got user_id:{user_id} notes len : {len(notes)}, notes_cursor: {notes_cursor}"
-            )
-            if callback:
-                await callback(notes)
-            await asyncio.sleep(crawl_interval)
-            result.extend(notes)
-        return result
+        uri = f"/api/sns/web/v1/user_posted?num={page_size}&cursor={cursor}&user_id={creator}&image_formats=jpg,webp,avif&xsec_token={xsec_token}&xsec_source={xsec_source}"
+        return await self.get(uri)
 
     async def get_note_by_id_from_html(
         self, note_id: str, xsec_source: str, xsec_token: str
@@ -711,7 +663,7 @@ class XiaoHongShuClient(AbstractApiClient):
             copy_headers = self.headers.copy()
             if current_retry <= 3:
                 # 前三次删除cookie，直接不带登录态请求网页
-                del copy_headers["Cookie"]
+                del copy_headers["cookie"]
 
             async with httpx.AsyncClient(proxies=ip_proxies) as client:
                 try:
@@ -744,6 +696,7 @@ class XiaoHongShuClient(AbstractApiClient):
                         f"[XiaoHongShuClient.get_note_by_id_from_html] 请求笔记详情页失败: {e}"
                     )
                     await asyncio.sleep(random.random())
+        return None
 
     async def get_note_short_url(self, note_id: str) -> Dict:
         """

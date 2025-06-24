@@ -61,6 +61,7 @@ cd MediaCrawlerPro-Python
 python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
+
 ```
 ##### 5、配置账号池+IP代理信息
 > 多账号管理基于cookies+IP配对，请按下方的配置说明进行配置，否则会导致爬虫无法正常运行。
@@ -78,6 +79,7 @@ Pro版本强烈推荐`IP代理+账号池`，代码层面基于这两者做了大
 ```shell
 python main.py --platform xhs --type search
 ```
+🌿🌿 新增断点续爬功能，使用文档见：[断点续爬系统文档](docs/断点续爬系统文档.md)
 
 ##### 7、查看数据
 > 不再推荐你使用csv和json存储，存储效率慢，还做不到排重，使用mysql存数据非常方便和高效

@@ -33,14 +33,6 @@ class AbstractCrawler(ABC):
         """
         raise NotImplementedError
 
-    @abstractmethod
-    async def search(self):
-        """
-        Search the content
-        Returns:
-
-        """
-        raise NotImplementedError
 
 
 class AbstractStore(ABC):

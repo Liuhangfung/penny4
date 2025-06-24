@@ -19,13 +19,15 @@ import config
 from .crawler_util import *
 from .time_util import *
 
+logger = None
 
-def init_loging_config():
+def init_logging_config():
     """
     init loging config
     Returns:
 
     """
+    global logger
     level = logging.INFO
     logging.basicConfig(
         level=level,
@@ -54,11 +56,8 @@ def init_loging_config():
             datefmt='%Y-%m-%d %H:%M:%S'
         ))
         _logger.addHandler(file_handler)
-
+    logger = _logger
     return _logger
-
-
-logger = init_loging_config()
 
 def str2bool(v):
     if isinstance(v, bool):

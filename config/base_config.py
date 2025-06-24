@@ -41,7 +41,7 @@ CRAWLER_MAX_NOTES_COUNT = 40
 MAX_CONCURRENCY_NUM = 1
 
 # 是否开启爬评论模式, 默认不开启爬评论
-ENABLE_GET_COMMENTS = False
+ENABLE_GET_COMMENTS = True
 
 # 是否开启爬二级评论模式, 默认不开启爬二级评论
 ENABLE_GET_SUB_COMMENTS = False
@@ -52,8 +52,15 @@ PER_NOTE_MAX_COMMENTS_COUNT = 0
 # 是否开启日志打印输出到文件中
 ENABLE_LOG_FILE = True
 
-# 小红书评论的游标，用于断点续爬，默认空字符串从头开始爬取
-XHS_COMMENTS_START_CURSOR = ""  
+# 是否启用断点续爬功能
+ENABLE_CHECKPOINT = True
+
+# 指定断点续爬的检查点ID，如果为空，则加载最新的检查点
+SPECIFIED_CHECKPOINT_ID = ""
+
+# 检查点存储类型，支持 file 和 redis
+CHECKPOINT_STORAGE_TYPE = "file" # file or redis
+
 
 # 已废弃⚠️⚠️⚠️指定小红书需要爬虫的笔记ID列表
 # 已废弃⚠️⚠️⚠️ 指定笔记ID笔记列表会因为缺少xsec_token和xsec_source参数导致爬取失败
@@ -65,6 +72,7 @@ XHS_COMMENTS_START_CURSOR = ""
 # 指定小红书需要爬虫的笔记URL列表, 目前要携带xsec_token和xsec_source参数
 # xsec_token和xsec_source是有时效的，需要在web端打开一个小红书笔记，复制地址栏的url参数
 XHS_SPECIFIED_NOTE_URL_LIST = [
+    "https://www.xiaohongshu.com/explore/640e90fc000000001300020a?xsec_token=ABHQo6pi_jn_mYc8M3_3Nwkq3M_0zmkLdCJsZRkIHneHo=&xsec_source=pc_feed"
     # "https://www.xiaohongshu.com/explore/66fad51c000000001b0224b8?xsec_token=AB3rO-QopW5sgrJ41GwN01WCXh6yWPxjSoFI9D5JIMgKw=&xsec_source=pc_search"
     # ........................
 ]
@@ -79,23 +87,23 @@ XHS_SPECIFIED_NOTE_URL_LIST = [
 
 # 指定小红书创作者主页url列表, 需要携带xsec_token和xsec_source参数
 XHS_CREATOR_URL_LIST = [
-    "https://www.xiaohongshu.com/user/profile/57eac44f82ec390709962976?xsec_token=ABH53bxuX45gNaE5O_N6cHYyNll8nheUV-ZkdHbeChBkM=&xsec_source=pc_feed"
+    "https://www.xiaohongshu.com/user/profile/58abbcfa6a6a692b3dd6b2d8?xsec_token=ABtXzgN9VSqUzCC0EADDzk7xU4iL-O1Y106JWqnvLJoic=&xsec_source=pc_feed"
     # ........................
 ]
 
 # 指定微博平台需要爬取的帖子列表
 WEIBO_SPECIFIED_ID_LIST = [
-    "4982041758140155",
+    "5180657661643376",
     # ........................
 ]
 # 指定weibo创作者ID列表
 WEIBO_CREATOR_ID_LIST = [
-    "7368601887 ",
+    "7841387436",
     # ........................
 ]
 
 # 指定贴吧需要爬取的帖子列表
-TIEBA_SPECIFIED_ID_LIST: List[str] = []
+TIEBA_SPECIFIED_ID_LIST: List[str] = ["9815127841"]
 
 # 指定贴吧名称列表，爬取该贴吧下的帖子
 TIEBA_NAME_LIST: List[str] = [

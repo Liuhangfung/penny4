@@ -26,6 +26,7 @@ from media_platform.weibo import WeiboCrawler
 from media_platform.xhs import XiaoHongShuCrawler
 from media_platform.zhihu import ZhihuCrawler
 from constant import MYSQL_ACCOUNT_SAVE
+from pkg.tools.utils import init_logging_config
 
 
 class CrawlerFactory:
@@ -62,7 +63,7 @@ class CrawlerFactory:
 async def main():
     print(
         """
-# ⚠️声明：本代码仅供学习和研究目的使用。使用者应遵守以下原则：  
+# ⚠️声明：本代码仅供个人学习和研究目的使用。使用者应遵守以下原则：  
 # ⚠️1. 不得用于任何商业用途。  
 # ⚠️2. 使用时应遵守目标平台的使用条款和robots.txt规则。  
 # ⚠️3. 不得进行大规模爬取或对平台造成运营干扰。  
@@ -76,6 +77,9 @@ async def main():
 
     # parse cmd
     cmd_arg.parse_cmd()
+
+    # init logging config
+    init_logging_config()
 
     # store or read using database, init db
     if config.SAVE_DATA_OPTION == "db" or config.ACCOUNT_POOL_SAVE_TYPE in [

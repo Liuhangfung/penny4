@@ -95,7 +95,7 @@ class SearchHandler(BaseHandler):
         
         keyword_list = self._get_search_keyword_list()
         checkpoint = Checkpoint(
-            platform=constant.DOUYIN_PLATFORM_NAME, mode=constant.CRALER_TYPE_SEARCH, current_search_page=config.START_PAGE
+            platform=constant.DOUYIN_PLATFORM_NAME, mode=constant.CRALER_TYPE_SEARCH, current_search_page=1
         )
 
         # 如果开启了断点续爬，则加载检查点
@@ -130,7 +130,7 @@ class SearchHandler(BaseHandler):
             utils.logger.info(f"[SearchHandler.search] Current keyword: {keyword}")
             page = checkpoint.current_search_page
             dy_search_id = checkpoint.current_search_id or ""
-            saved_aweme_count = (page - config.START_PAGE) * dy_limit_count
+            saved_aweme_count = (page - 1) * dy_limit_count
             
             while saved_aweme_count <= config.CRAWLER_MAX_NOTES_COUNT:
                 try:

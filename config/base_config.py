@@ -58,6 +58,9 @@ ENABLE_CHECKPOINT = True
 # 指定断点续爬的检查点ID，如果为空，则加载最新的检查点
 SPECIFIED_CHECKPOINT_ID = ""
 
+# 检查点存储类型，支持 file 和 redis
+CHECKPOINT_STORAGE_TYPE = "file" # file or redis
+
 
 # 已废弃⚠️⚠️⚠️指定小红书需要爬虫的笔记ID列表
 # 已废弃⚠️⚠️⚠️ 指定笔记ID笔记列表会因为缺少xsec_token和xsec_source参数导致爬取失败
@@ -100,7 +103,7 @@ WEIBO_CREATOR_ID_LIST = [
 ]
 
 # 指定贴吧需要爬取的帖子列表
-TIEBA_SPECIFIED_ID_LIST: List[str] = []
+TIEBA_SPECIFIED_ID_LIST: List[str] = ["9815127841"]
 
 # 指定贴吧名称列表，爬取该贴吧下的帖子
 TIEBA_NAME_LIST: List[str] = [

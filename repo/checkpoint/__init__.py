@@ -1,3 +1,4 @@
+from config import CHECKPOINT_STORAGE_TYPE
 from .checkpoint_store import (
     CheckpointJsonFileRepo,
     CheckpointRedisRepo,
@@ -6,7 +7,7 @@ from .checkpoint_store import (
 
 
 def create_checkpoint_manager(
-    storage_type: str = "file", **kwargs
+    storage_type: str = CHECKPOINT_STORAGE_TYPE, **kwargs
 ) -> CheckpointRepoManager:
     """创建检查点管理器的工厂函数
 

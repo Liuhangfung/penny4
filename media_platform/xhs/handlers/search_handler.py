@@ -154,6 +154,8 @@ class SearchHandler(BaseHandler):
                     for post_item in notes_res.get("items", []):
                         if post_item.get("model_type") in ("rec_query", "hot_query"):
                             continue
+                        # 适配 batch_get_note_list
+                        post_item["note_id"] = post_item.get("id")
                         note_list.append(post_item)
 
                     note_id_list, xsec_tokens = await self.note_processor.batch_get_note_list(

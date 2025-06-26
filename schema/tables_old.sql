@@ -1,6 +1,3 @@
--- MediaCrawlerPro 完整数据库表结构
--- 此文件整合了原始表结构和所有后续的ALTER TABLE语句
-
 DROP TABLE IF EXISTS `bilibili_video`;
 CREATE TABLE `bilibili_video`
 (
@@ -22,7 +19,6 @@ CREATE TABLE `bilibili_video`
     `video_comment`    varchar(16)  DEFAULT NULL COMMENT '视频评论数量',
     `video_url`        varchar(512) DEFAULT NULL COMMENT '视频详情URL',
     `video_cover_url`  varchar(512) DEFAULT NULL COMMENT '视频封面图 URL',
-    `source_keyword`   varchar(255) DEFAULT '' COMMENT '搜索来源关键字',
     PRIMARY KEY (`id`),
     KEY                `idx_bilibili_vi_video_i_31c36e` (`video_id`),
     KEY                `idx_bilibili_vi_create__73e0ec` (`create_time`)
@@ -43,8 +39,6 @@ CREATE TABLE `bilibili_video_comment`
     `content`           longtext COMMENT '评论内容',
     `create_time`       bigint      NOT NULL COMMENT '评论时间戳',
     `sub_comment_count` varchar(16) NOT NULL COMMENT '评论回复数',
-    `parent_comment_id` varchar(64) DEFAULT NULL COMMENT '父评论ID',
-    `like_count`        varchar(255) NOT NULL DEFAULT '0' COMMENT '点赞数',
     PRIMARY KEY (`id`),
     KEY                 `idx_bilibili_vi_comment_41c34e` (`comment_id`),
     KEY                 `idx_bilibili_vi_video_i_f22873` (`video_id`)
@@ -94,8 +88,7 @@ CREATE TABLE `douyin_aweme`
     `collected_count` varchar(16)  DEFAULT NULL COMMENT '视频收藏数',
     `aweme_url`       varchar(255) DEFAULT NULL COMMENT '视频详情页URL',
     `cover_url`       varchar(500) DEFAULT NULL COMMENT '视频封面图URL',
-    `video_download_url` varchar(1024) DEFAULT NULL COMMENT '视频下载地址',
-    `source_keyword`  varchar(255) DEFAULT '' COMMENT '搜索来源关键字',
+    `video_download_url`       varchar(1024) DEFAULT NULL COMMENT '视频下载地址',
     PRIMARY KEY (`id`),
     KEY               `idx_douyin_awem_aweme_i_6f7bc6` (`aweme_id`),
     KEY               `idx_douyin_awem_create__299dfe` (`create_time`)
@@ -121,10 +114,6 @@ CREATE TABLE `douyin_aweme_comment`
     `content`           longtext COMMENT '评论内容',
     `create_time`       bigint      NOT NULL COMMENT '评论时间戳',
     `sub_comment_count` varchar(16) NOT NULL COMMENT '评论回复数',
-    `parent_comment_id` varchar(64) DEFAULT NULL COMMENT '父评论ID',
-    `like_count`        varchar(255) NOT NULL DEFAULT '0' COMMENT '点赞数',
-    `pictures`          varchar(500) NOT NULL DEFAULT '' COMMENT '评论图片列表',
-    `reply_to_reply_id` varchar(64) DEFAULT NULL COMMENT '目标评论ID',
     PRIMARY KEY (`id`),
     KEY                 `idx_douyin_awem_comment_fcd7e4` (`comment_id`),
     KEY                 `idx_douyin_awem_aweme_i_c50049` (`aweme_id`)
@@ -170,7 +159,6 @@ CREATE TABLE `kuaishou_video`
     `video_url`       varchar(512) DEFAULT NULL COMMENT '视频详情URL',
     `video_cover_url` varchar(512) DEFAULT NULL COMMENT '视频封面图 URL',
     `video_play_url`  varchar(512) DEFAULT NULL COMMENT '视频播放 URL',
-    `source_keyword`  varchar(255) DEFAULT '' COMMENT '搜索来源关键字',
     PRIMARY KEY (`id`),
     KEY               `idx_kuaishou_vi_video_i_c5c6a6` (`video_id`),
     KEY               `idx_kuaishou_vi_create__a10dee` (`create_time`)
@@ -191,7 +179,6 @@ CREATE TABLE `kuaishou_video_comment`
     `content`           longtext COMMENT '评论内容',
     `create_time`       bigint      NOT NULL COMMENT '评论时间戳',
     `sub_comment_count` varchar(16) NOT NULL COMMENT '评论回复数',
-    `like_count`        varchar(255) NOT NULL DEFAULT '0' COMMENT '点赞数',
     PRIMARY KEY (`id`),
     KEY                 `idx_kuaishou_vi_comment_ed48fa` (`comment_id`),
     KEY                 `idx_kuaishou_vi_video_i_e50914` (`video_id`)
@@ -236,7 +223,6 @@ CREATE TABLE `weibo_note`
     `comments_count`   varchar(16)  DEFAULT NULL COMMENT '帖子评论数量',
     `shared_count`     varchar(16)  DEFAULT NULL COMMENT '帖子转发数量',
     `note_url`         varchar(512) DEFAULT NULL COMMENT '帖子详情URL',
-    `source_keyword`   varchar(255) DEFAULT '' COMMENT '搜索来源关键字',
     PRIMARY KEY (`id`),
     KEY                `idx_weibo_note_note_id_f95b1a` (`note_id`),
     KEY                `idx_weibo_note_create__692709` (`create_time`),
@@ -262,8 +248,6 @@ CREATE TABLE `weibo_note_comment`
     `create_time`        bigint      NOT NULL COMMENT '评论时间戳',
     `create_date_time`   varchar(32) NOT NULL COMMENT '评论日期时间',
     `sub_comment_count`  varchar(16) NOT NULL COMMENT '评论回复数',
-    `parent_comment_id`  varchar(64) DEFAULT NULL COMMENT '父评论ID',
-    `like_count`         varchar(255) NOT NULL DEFAULT '0' COMMENT '点赞数',
     PRIMARY KEY (`id`),
     KEY                  `idx_weibo_note__comment_c7611c` (`comment_id`),
     KEY                  `idx_weibo_note__note_id_24f108` (`note_id`),
@@ -315,7 +299,6 @@ CREATE TABLE `xhs_note`
     `image_list`       longtext COMMENT '笔记封面图片列表',
     `tag_list`         longtext COMMENT '标签列表',
     `note_url`         varchar(255) DEFAULT NULL COMMENT '笔记详情页的URL',
-    `source_keyword`   varchar(255) DEFAULT '' COMMENT '搜索来源关键字',
     PRIMARY KEY (`id`),
     KEY                `idx_xhs_note_note_id_209457` (`note_id`),
     KEY                `idx_xhs_note_time_eaa910` (`time`)
@@ -338,14 +321,23 @@ CREATE TABLE `xhs_note_comment`
     `content`           longtext    NOT NULL COMMENT '评论内容',
     `sub_comment_count` int         NOT NULL COMMENT '子评论数量',
     `pictures`          varchar(512) DEFAULT NULL,
-    `parent_comment_id` varchar(64) DEFAULT NULL COMMENT '父评论ID',
-    `like_count`        varchar(255) NOT NULL DEFAULT '0' COMMENT '点赞数',
-    `note_url`          varchar(255) NOT NULL DEFAULT '' COMMENT '所属的笔记链接',
-    `target_comment_id` varchar(64) DEFAULT NULL COMMENT '目标评论ID',
     PRIMARY KEY (`id`),
     KEY                 `idx_xhs_note_co_comment_8e8349` (`comment_id`),
     KEY                 `idx_xhs_note_co_create__204f8d` (`create_time`)
 ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='小红书笔记评论';
+
+
+ALTER TABLE `xhs_note_comment`
+    ADD COLUMN `parent_comment_id` VARCHAR(64) DEFAULT NULL COMMENT '父评论ID';
+
+ALTER TABLE `douyin_aweme_comment`
+    ADD COLUMN `parent_comment_id` VARCHAR(64) DEFAULT NULL COMMENT '父评论ID';
+
+ALTER TABLE `bilibili_video_comment`
+    ADD COLUMN `parent_comment_id` VARCHAR(64) DEFAULT NULL COMMENT '父评论ID';
+
+ALTER TABLE `weibo_note_comment`
+    ADD COLUMN `parent_comment_id` VARCHAR(64) DEFAULT NULL COMMENT '父评论ID';
 
 
 DROP TABLE IF EXISTS `tieba_note`;
@@ -368,7 +360,6 @@ CREATE TABLE tieba_note
     ip_location       VARCHAR(255) DEFAULT '' COMMENT 'IP地理位置',
     add_ts            BIGINT       NOT NULL COMMENT '添加时间戳',
     last_modify_ts    BIGINT       NOT NULL COMMENT '最后修改时间戳',
-    source_keyword    VARCHAR(255) DEFAULT '' COMMENT '搜索来源关键字',
     KEY               `idx_tieba_note_note_id` (`note_id`),
     KEY               `idx_tieba_note_publish_time` (`publish_time`)
 ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='贴吧帖子表';
@@ -414,6 +405,15 @@ CREATE TABLE `crawler_cookies_account`
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='爬虫采集账号表（cookies）';
 
 
+
+alter table bilibili_video add column `source_keyword` varchar(255) default '' comment '搜索来源关键字';
+alter table douyin_aweme add column `source_keyword` varchar(255) default '' comment '搜索来源关键字';
+alter table kuaishou_video add column `source_keyword` varchar(255) default '' comment '搜索来源关键字';
+alter table weibo_note add column `source_keyword` varchar(255) default '' comment '搜索来源关键字';
+alter table xhs_note add column `source_keyword` varchar(255) default '' comment '搜索来源关键字';
+alter table tieba_note add column `source_keyword` varchar(255) default '' comment '搜索来源关键字';
+
+
 DROP TABLE IF EXISTS `weibo_creator`;
 CREATE TABLE `weibo_creator`
 (
@@ -431,6 +431,7 @@ CREATE TABLE `weibo_creator`
     `tag_list`       longtext COMMENT '标签列表',
     PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='微博博主';
+
 
 
 DROP TABLE IF EXISTS `tieba_creator`;
@@ -479,6 +480,7 @@ CREATE TABLE `zhihu_content` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='知乎内容（回答、文章、视频）';
 
 
+
 CREATE TABLE `zhihu_comment` (
     `id` int NOT NULL AUTO_INCREMENT COMMENT '自增ID',
     `comment_id` varchar(64) NOT NULL COMMENT '评论ID',
@@ -525,4 +527,23 @@ CREATE TABLE `zhihu_creator` (
     `last_modify_ts` bigint NOT NULL COMMENT '记录最后修改时间戳',
     PRIMARY KEY (`id`),
     UNIQUE KEY `idx_zhihu_creator_user_id` (`user_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='知乎创作者'; 
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='知乎创作者';
+
+
+alter table bilibili_video_comment add column `like_count` varchar(255) NOT NULL DEFAULT '0' COMMENT '点赞数';
+alter table douyin_aweme_comment add column `like_count` varchar(255) NOT NULL DEFAULT '0' COMMENT '点赞数';
+alter table kuaishou_video_comment add column `like_count` varchar(255) NOT NULL DEFAULT '0' COMMENT '点赞数';
+alter table weibo_note_comment add column `like_count` varchar(255) NOT NULL DEFAULT '0' COMMENT '点赞数';
+alter table xhs_note_comment add column `like_count` varchar(255) NOT NULL DEFAULT '0' COMMENT '点赞数';
+
+-- 小红书笔记评论添加笔记链接 for issue : https://github.com/MediaCrawlerPro/MediaCrawlerPro-Python/issues/116
+alter table xhs_note_comment add column `note_url` varchar(255) NOT NULL DEFAULT '' COMMENT '所属的笔记链接';
+
+-- 抖音评论添加评论图片列表 for issue : https://github.com/MediaCrawlerPro/MediaCrawlerPro-Python/issues/171
+alter table douyin_aweme_comment add column `pictures` varchar(500) NOT NULL DEFAULT '' COMMENT '评论图片列表';
+
+-- 小红书评论增加target_comment_id for issue: https://github.com/MediaCrawlerPro/MediaCrawlerPro-Python/issues/23
+alter table xhs_note_comment add column `target_comment_id` varchar(64) DEFAULT NULL COMMENT '目标评论ID';
+
+-- 抖音评论增加reply_to_reply_id for issue: https://github.com/MediaCrawlerPro/MediaCrawlerPro-Python/issues/23
+alter table douyin_aweme_comment add column `reply_to_reply_id` varchar(64) DEFAULT NULL COMMENT '目标评论ID';

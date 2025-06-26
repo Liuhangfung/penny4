@@ -1,12 +1,12 @@
-# 声明：本代码仅供学习和研究目的使用。使用者应遵守以下原则：  
-# 1. 不得用于任何商业用途。  
-# 2. 使用时应遵守目标平台的使用条款和robots.txt规则。  
-# 3. 不得进行大规模爬取或对平台造成运营干扰。  
-# 4. 应合理控制请求频率，避免给目标平台带来不必要的负担。   
+# 声明：本代码仅供学习和研究目的使用。使用者应遵守以下原则：
+# 1. 不得用于任何商业用途。
+# 2. 使用时应遵守目标平台的使用条款和robots.txt规则。
+# 3. 不得进行大规模爬取或对平台造成运营干扰。
+# 4. 应合理控制请求频率，避免给目标平台带来不必要的负担。
 # 5. 不得用于任何非法或不当的用途。
-#   
-# 详细许可条款请参阅项目根目录下的LICENSE文件。  
-# 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。  
+#
+# 详细许可条款请参阅项目根目录下的LICENSE文件。
+# 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。
 
 
 # -*- coding: utf-8 -*-
@@ -76,6 +76,7 @@ async def init_table_schema():
     Returns:
 
     """
+    utils.init_logging_config()
     utils.logger.info("[init_table_schema] begin init mysql table schema ...")
     await init_mediacrawler_db()
     async_db_obj: AsyncMysqlDB = media_crawler_db_var.get()
@@ -83,15 +84,21 @@ async def init_table_schema():
     # 检查是否已经初始化过表结构
     check_sql = "show tables"
     tables = await async_db_obj.query(check_sql)
-    if len(tables) > 0: # 直接用长度判断吧，只要media_crawler库中有表就认为已经初始化过了
-        utils.logger.info("[init_table_schema] mediacrawler table schema already init， skip init table schema")
+    if (
+        len(tables) > 0
+    ):  # 直接用长度判断吧，只要media_crawler库中有表就认为已经初始化过了
+        utils.logger.info(
+            "[init_table_schema] mediacrawler table schema already init， skip init table schema"
+        )
         return
 
     async with aiofiles.open("schema/tables.sql", mode="r", encoding="utf-8") as f:
         schema_sql = await f.read()
         await async_db_obj.execute(schema_sql)
-        utils.logger.info("[init_table_schema] mediacrawler table schema init successful")
+        utils.logger.info(
+            "[init_table_schema] mediacrawler table schema init successful"
+        )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     asyncio.get_event_loop().run_until_complete(init_table_schema())

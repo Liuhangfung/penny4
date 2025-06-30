@@ -14,6 +14,7 @@ class CheckpointNote(BaseModel):
         "", description="当前帖子评论游标"
     )
 
+
 class Checkpoint(BaseModel):
     """
     检查点
@@ -38,10 +39,14 @@ class Checkpoint(BaseModel):
     current_creator_page: Optional[str] = Field(None, description="当前创作者页码")
 
     # 首页推荐流相关字段
-    current_homefeed_cursor: Optional[str] = Field(None, description="当前首页推荐流游标")
-    current_homefeed_note_index: Optional[int] = Field(None, description="当前首页推荐流笔记索引")
+    current_homefeed_cursor: Optional[str] = Field(
+        None, description="当前首页推荐流游标"
+    )
+    current_homefeed_note_index: Optional[int] = Field(
+        None, description="当前首页推荐流笔记索引"
+    )
 
     # 帖子相关字段（搜索模式、详情模式、创作者模式、首页推荐流能用到）
     crawled_note_list: Optional[List[CheckpointNote]] = Field(
-        None, description="已爬取的帖子列表"
+        [], description="已爬取的帖子列表"
     )

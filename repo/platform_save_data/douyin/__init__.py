@@ -128,6 +128,7 @@ async def update_douyin_aweme(aweme_item: Dict):
     aweme_id = aweme_item.get("aweme_id")
     user_info = aweme_item.get("author", {})
     interact_info = aweme_item.get("statistics", {})
+    is_ai_generated = aweme_item.get("risk_infos", {}).get("type", 0) == 44
     save_content_item = {
         "aweme_id": aweme_id,
         "aweme_type": str(aweme_item.get("aweme_type")),
@@ -151,6 +152,7 @@ async def update_douyin_aweme(aweme_item: Dict):
         "cover_url": _extract_content_cover_url(aweme_item),
         "video_download_url": _extract_video_download_url(aweme_item),
         "source_keyword": source_keyword_var.get(),
+        "is_ai_generated": is_ai_generated,
     }
     utils.logger.info(
         f"[store.douyin.update_douyin_aweme] douyin aweme id:{aweme_id}, title:{save_content_item.get('title')}"

@@ -96,6 +96,7 @@ CREATE TABLE `douyin_aweme`
     `cover_url`       varchar(500) DEFAULT NULL COMMENT '视频封面图URL',
     `video_download_url` varchar(1024) DEFAULT NULL COMMENT '视频下载地址',
     `source_keyword`  varchar(255) DEFAULT '' COMMENT '搜索来源关键字',
+    `is_ai_generated` tinyint(1) NOT NULL DEFAULT '0' COMMENT '作者是否声明视频为AI生成',
     PRIMARY KEY (`id`),
     KEY               `idx_douyin_awem_aweme_i_6f7bc6` (`aweme_id`),
     KEY               `idx_douyin_awem_create__299dfe` (`create_time`)

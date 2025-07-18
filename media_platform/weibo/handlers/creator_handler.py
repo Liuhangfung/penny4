@@ -1,12 +1,12 @@
-# 声明：本代码仅供学习和研究目的使用。使用者应遵守以下原则：  
-# 1. 不得用于任何商业用途。  
-# 2. 使用时应遵守目标平台的使用条款和robots.txt规则。  
-# 3. 不得进行大规模爬取或对平台造成运营干扰。  
-# 4. 应合理控制请求频率，避免给目标平台带来不必要的负担。   
+# 声明：本代码仅供学习和研究目的使用。使用者应遵守以下原则：
+# 1. 不得用于任何商业用途。
+# 2. 使用时应遵守目标平台的使用条款和robots.txt规则。
+# 3. 不得进行大规模爬取或对平台造成运营干扰。
+# 4. 应合理控制请求频率，避免给目标平台带来不必要的负担。
 # 5. 不得用于任何非法或不当的用途。
-#   
-# 详细许可条款请参阅项目根目录下的LICENSE文件。  
-# 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。  
+#
+# 详细许可条款请参阅项目根目录下的LICENSE文件。
+# 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。
 
 import asyncio
 from typing import Dict, List, Optional, TYPE_CHECKING
@@ -28,29 +28,31 @@ if TYPE_CHECKING:
 
 class CreatorHandler(BaseHandler):
     """Handles creator-based crawling operations"""
-    
+
     def __init__(
         self,
         wb_client: "WeiboClient",
         checkpoint_manager: "CheckpointRepoManager",
         note_processor: "NoteProcessor",
-        comment_processor: "CommentProcessor"
+        comment_processor: "CommentProcessor",
     ):
         """
         Initialize creator handler
-        
+
         Args:
             wb_client: Weibo API client
             checkpoint_manager: Checkpoint manager for resume functionality
             note_processor: Note processing component
             comment_processor: Comment processing component
         """
-        super().__init__(wb_client, checkpoint_manager, note_processor, comment_processor)
-    
+        super().__init__(
+            wb_client, checkpoint_manager, note_processor, comment_processor
+        )
+
     async def handle(self) -> None:
         """
         Handle creator-based crawling
-        
+
         Returns:
             None
         """
@@ -82,7 +84,9 @@ class CreatorHandler(BaseHandler):
         utils.logger.info(
             "[CreatorHandler.get_creators_and_notes] Begin get weibo creators"
         )
-        checkpoint = Checkpoint(platform=constant.WEIBO_PLATFORM_NAME, mode=constant.CRALER_TYPE_CREATOR)
+        checkpoint = Checkpoint(
+            platform=constant.WEIBO_PLATFORM_NAME, mode=constant.CRALER_TYPE_CREATOR
+        )
         creator_list = config.WEIBO_CREATOR_ID_LIST
         if config.ENABLE_CHECKPOINT:
             lastest_checkpoint = await self.checkpoint_manager.load_checkpoint(
@@ -179,7 +183,7 @@ class CreatorHandler(BaseHandler):
                 )
                 break
 
-            since_id = notes_res.get("cardlistInfo", {}).get("since_id", "0")
+            since_id = str(notes_res.get("cardlistInfo", {}).get("since_id", "0"))
             if "cards" not in notes_res:
                 utils.logger.info(
                     f"[CreatorHandler.get_all_notes_by_creator] No 'cards' key found in response: {notes_res}"
@@ -193,7 +197,9 @@ class CreatorHandler(BaseHandler):
             notes = [note for note in notes if note.get("card_type") == 9]
 
             # Process notes through note processor
-            note_ids = await self.note_processor.batch_get_note_list(notes, checkpoint_id=checkpoint_id)
+            note_ids = await self.note_processor.batch_get_note_list(
+                notes, checkpoint_id=checkpoint_id
+            )
             await self.comment_processor.batch_get_note_comments(
                 note_ids, checkpoint_id=checkpoint.id
             )
@@ -205,8 +211,10 @@ class CreatorHandler(BaseHandler):
             )
 
             # Update checkpoint with current page
-            checkpoint = await self.checkpoint_manager.load_checkpoint_by_id(checkpoint_id)
+            checkpoint = await self.checkpoint_manager.load_checkpoint_by_id(
+                checkpoint_id
+            )
             checkpoint.current_creator_page = since_id
             await self.checkpoint_manager.update_checkpoint(checkpoint)
-            
+
         return result

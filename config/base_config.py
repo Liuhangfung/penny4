@@ -59,8 +59,11 @@ ENABLE_CHECKPOINT = True
 SPECIFIED_CHECKPOINT_ID = ""
 
 # 检查点存储类型，支持 file 和 redis
-CHECKPOINT_STORAGE_TYPE = "file" # file or redis
+CHECKPOINT_STORAGE_TYPE = "file"  # file or redis
 
+# 是否开启微博爬取全文的功能，默认不开启（关键词搜索、创作者主页的返回的帖子里表，如果正文过长，则只返回部分内容）
+# 如果开启的话会增加被风控的概率，相当于一个关键词搜索请求会再遍历所有帖子的时候，再请求一次帖子详情
+ENABLE_WEIBO_FULL_TEXT = False
 
 # 已废弃⚠️⚠️⚠️指定小红书需要爬虫的笔记ID列表
 # 已废弃⚠️⚠️⚠️ 指定笔记ID笔记列表会因为缺少xsec_token和xsec_source参数导致爬取失败

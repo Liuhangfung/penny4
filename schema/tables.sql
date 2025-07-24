@@ -237,6 +237,8 @@ CREATE TABLE `weibo_note`
     `comments_count`   varchar(16)  DEFAULT NULL COMMENT '帖子评论数量',
     `shared_count`     varchar(16)  DEFAULT NULL COMMENT '帖子转发数量',
     `note_url`         varchar(512) DEFAULT NULL COMMENT '帖子详情URL',
+    `image_list`       longtext COMMENT '封面图片列表',
+    `video_url`        longtext COMMENT '视频地址',
     `source_keyword`   varchar(255) DEFAULT '' COMMENT '搜索来源关键字',
     PRIMARY KEY (`id`),
     KEY                `idx_weibo_note_note_id_f95b1a` (`note_id`),

@@ -19,12 +19,14 @@ import time
 import unittest
 
 from pkg.cache.local_cache import ExpiringLocalCache
+from pkg.tools.utils import init_logging_config
 
 
 class TestExpiringLocalCache(unittest.TestCase):
 
     def setUp(self):
         self.cache = ExpiringLocalCache(cron_interval=10)
+        init_logging_config()
 
     def test_set_and_get(self):
         self.cache.set('key', 'value', 10)

@@ -19,12 +19,14 @@ import time
 import unittest
 
 from pkg.cache.redis_cache import RedisCache
+from pkg.tools.utils import init_logging_config
 
 
 class TestRedisCache(unittest.TestCase):
 
     def setUp(self):
         self.redis_cache = RedisCache()
+        init_logging_config()
 
     def test_set_and_get(self):
         self.redis_cache.set('key', 'value', 10)

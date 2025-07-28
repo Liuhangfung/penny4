@@ -15,6 +15,7 @@ from pkg.tools import utils
 
 
 def test_convert_cookies():
+    utils.init_logging_config()
     xhs_cookies = "a1=x000101360; webId=1190c4d3cxxxx125xxx; "
     cookie_dict = utils.convert_str_cookie_to_dict(xhs_cookies)
     assert cookie_dict.get("webId") == "1190c4d3cxxxx125xxx"

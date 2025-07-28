@@ -19,10 +19,15 @@ from unittest import IsolatedAsyncioTestCase
 
 from pkg.proxy.proxy_ip_pool import create_ip_pool
 from pkg.proxy.types import IpInfoModel
+from pkg.tools.utils import init_logging_config
 
 
 class TestIpPool(IsolatedAsyncioTestCase):
+    def setUp(self):
+        init_logging_config()
+
     async def test_ip_pool(self):
+        # init logging config
         pool = await create_ip_pool(ip_pool_count=1, enable_validate_ip=True)
         print("\n")
         for i in range(3):
@@ -31,6 +36,3 @@ class TestIpPool(IsolatedAsyncioTestCase):
             print(f"当前ip {ip_proxy_info} 在多少时间后过期: {ip_proxy_info.expired_time_ts - int(time.time())} 秒")
             self.assertIsNotNone(ip_proxy_info.ip, msg="验证 ip 是否获取成功")
             await asyncio.sleep(1)
-
-
-

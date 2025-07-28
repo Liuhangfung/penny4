@@ -1,12 +1,12 @@
-# 声明：本代码仅供学习和研究目的使用。使用者应遵守以下原则：  
-# 1. 不得用于任何商业用途。  
-# 2. 使用时应遵守目标平台的使用条款和robots.txt规则。  
-# 3. 不得进行大规模爬取或对平台造成运营干扰。  
-# 4. 应合理控制请求频率，避免给目标平台带来不必要的负担。   
+# 声明：本代码仅供学习和研究目的使用。使用者应遵守以下原则：
+# 1. 不得用于任何商业用途。
+# 2. 使用时应遵守目标平台的使用条款和robots.txt规则。
+# 3. 不得进行大规模爬取或对平台造成运营干扰。
+# 4. 应合理控制请求频率，避免给目标平台带来不必要的负担。
 # 5. 不得用于任何非法或不当的用途。
-#   
-# 详细许可条款请参阅项目根目录下的LICENSE文件。  
-# 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。  
+#
+# 详细许可条款请参阅项目根目录下的LICENSE文件。
+# 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。
 
 from typing import Dict, List, TYPE_CHECKING
 
@@ -28,34 +28,36 @@ if TYPE_CHECKING:
 
 class SearchHandler(BaseHandler):
     """Handles search-based crawling operations"""
-    
+
     def __init__(
         self,
         dy_client: "DouYinApiClient",
         checkpoint_manager: "CheckpointRepoManager",
         aweme_processor: "AwemeProcessor",
-        comment_processor: "CommentProcessor"
+        comment_processor: "CommentProcessor",
     ):
         """
         Initialize search handler
-        
+
         Args:
             dy_client: Douyin API client
             checkpoint_manager: Checkpoint manager for resume functionality
             aweme_processor: Aweme processing component
             comment_processor: Comment processing component
         """
-        super().__init__(dy_client, checkpoint_manager, aweme_processor, comment_processor)
-    
+        super().__init__(
+            dy_client, checkpoint_manager, aweme_processor, comment_processor
+        )
+
     async def handle(self) -> None:
         """
         Handle search-based crawling
-        
+
         Returns:
             None
         """
         await self.search()
-    
+
     @staticmethod
     def _get_search_keyword_list() -> List[str]:
         """
@@ -92,10 +94,12 @@ class SearchHandler(BaseHandler):
         dy_limit_count = 20  # douyin limit page fixed value
         if config.CRAWLER_MAX_NOTES_COUNT < dy_limit_count:
             config.CRAWLER_MAX_NOTES_COUNT = dy_limit_count
-        
+
         keyword_list = self._get_search_keyword_list()
         checkpoint = Checkpoint(
-            platform=constant.DOUYIN_PLATFORM_NAME, mode=constant.CRALER_TYPE_SEARCH, current_search_page=1
+            platform=constant.DOUYIN_PLATFORM_NAME,
+            mode=constant.CRALER_TYPE_SEARCH,
+            current_search_page=1,
         )
 
         # 如果开启了断点续爬，则加载检查点
@@ -131,7 +135,7 @@ class SearchHandler(BaseHandler):
             page = checkpoint.current_search_page
             dy_search_id = checkpoint.current_search_id or ""
             saved_aweme_count = (page - 1) * dy_limit_count
-            
+
             while saved_aweme_count <= config.CRAWLER_MAX_NOTES_COUNT:
                 try:
                     utils.logger.info(
@@ -149,28 +153,37 @@ class SearchHandler(BaseHandler):
                             f"[SearchHandler.search] search douyin keyword: {keyword} failed，账号也许被风控了。"
                         )
                         break
-                    
+
                     dy_search_id = posts_res.get("extra", {}).get("logid", "")
                     aweme_id_list: List[str] = []
-                    
-                    for post_item in posts_res.get("data"):
+
+                    post_item_list: List[Dict] = posts_res.get("data")
+                    if len(post_item_list) == 0:
+                        utils.logger.error(
+                            f"[SearchHandler.search] search douyin keyword: {keyword} empty post list。"
+                        )
+                        break
+
+                    for post_item in post_item_list:
                         try:
                             aweme_info: Dict = (
                                 post_item.get("aweme_info")
-                                or post_item.get("aweme_mix_info", {}).get("mix_items")[0]
+                                or post_item.get("aweme_mix_info", {}).get("mix_items")[
+                                    0
+                                ]
                             )
                         except TypeError:
                             continue
-                        
+
                         aweme_id = aweme_info.get("aweme_id", "")
                         if not aweme_id:
                             continue
-                            
+
                         aweme_id_list.append(aweme_id)
-                        
+
                         # 检查是否已经爬取过
                         if await self.checkpoint_manager.check_note_is_crawled_in_checkpoint(
-                                checkpoint_id=checkpoint.id, note_id=aweme_id
+                            checkpoint_id=checkpoint.id, note_id=aweme_id
                         ):
                             utils.logger.info(
                                 f"[SearchHandler.search] Aweme {aweme_id} is already crawled, skip"
@@ -184,7 +197,7 @@ class SearchHandler(BaseHandler):
                             extra_params_info={},
                             is_success_crawled=True,
                         )
-                        
+
                         await douyin_store.update_douyin_aweme(aweme_item=aweme_info)
                         saved_aweme_count += 1
 

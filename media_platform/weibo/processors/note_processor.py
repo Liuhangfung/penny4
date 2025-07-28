@@ -129,7 +129,7 @@ class NoteProcessor:
                         f"[NoteProcessor.batch_get_note_list] Get note detail error: {note_id}"
                     )
                 else:
-                    await weibo_store.update_weibo_note(note_item)
+                    await weibo_store.update_weibo_note(note_detail)
             else:
                 # 如果未开启微博爬取全文的功能，则直接保存
                 await weibo_store.update_weibo_note(note_item)

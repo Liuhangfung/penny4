@@ -1,11 +1,11 @@
-# 声明：本代码仅供学习和研究目的使用。使用者应遵守以下原则：  
-# 1. 不得用于任何商业用途。  
-# 2. 使用时应遵守目标平台的使用条款和robots.txt规则。  
-# 3. 不得进行大规模爬取或对平台造成运营干扰。  
-# 4. 应合理控制请求频率，避免给目标平台带来不必要的负担。   
+# 声明：本代码仅供学习和研究目的使用。使用者应遵守以下原则：
+# 1. 不得用于任何商业用途。
+# 2. 使用时应遵守目标平台的使用条款和robots.txt规则。
+# 3. 不得进行大规模爬取或对平台造成运营干扰。
+# 4. 应合理控制请求频率，避免给目标平台带来不必要的负担。
 # 5. 不得用于任何非法或不当的用途。
-#   
-# 详细许可条款请参阅项目根目录下的LICENSE文件。  
+#
+# 详细许可条款请参阅项目根目录下的LICENSE文件。
 # 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。
 
 from typing import List, TYPE_CHECKING
@@ -30,27 +30,29 @@ class SearchHandler(BaseHandler):
     """Handles search-based crawling operations"""
 
     def __init__(
-            self,
-            wb_client: "WeiboClient",
-            checkpoint_manager: "CheckpointRepoManager",
-            note_processor: "NoteProcessor",
-            comment_processor: "CommentProcessor"
+        self,
+        wb_client: "WeiboClient",
+        checkpoint_manager: "CheckpointRepoManager",
+        note_processor: "NoteProcessor",
+        comment_processor: "CommentProcessor",
     ):
         """
         Initialize search handler
-        
+
         Args:
             wb_client: Weibo API client
             checkpoint_manager: Checkpoint manager for resume functionality
             note_processor: Note processing component
             comment_processor: Comment processing component
         """
-        super().__init__(wb_client, checkpoint_manager, note_processor, comment_processor)
+        super().__init__(
+            wb_client, checkpoint_manager, note_processor, comment_processor
+        )
 
     async def handle(self) -> None:
         """
         Handle search-based crawling
-        
+
         Returns:
             None
         """
@@ -88,12 +90,12 @@ class SearchHandler(BaseHandler):
         Returns:
             None
         """
-        utils.logger.info(
-            "[SearchHandler.search] Begin search weibo keywords"
-        )
+        utils.logger.info("[SearchHandler.search] Begin search weibo keywords")
         keyword_list = self._get_search_keyword_list()
         checkpoint = Checkpoint(
-            platform=constant.WEIBO_PLATFORM_NAME, mode=constant.CRALER_TYPE_SEARCH, current_search_page=1
+            platform=constant.WEIBO_PLATFORM_NAME,
+            mode=constant.CRALER_TYPE_SEARCH,
+            current_search_page=1,
         )
 
         # 如果开启了断点续爬，则加载检查点
@@ -148,14 +150,14 @@ class SearchHandler(BaseHandler):
                         break
 
                     note_id_list = await self.note_processor.batch_get_note_list(
-                        note_list=note_list,
-                        checkpoint_id=checkpoint.id
+                        note_list=note_list, checkpoint_id=checkpoint.id
                     )
                     await self.comment_processor.batch_get_note_comments(
                         note_id_list, checkpoint_id=checkpoint.id
                     )
 
                     page += 1
+                    saved_note_count += len(note_list)
 
                 except Exception as ex:
                     utils.logger.error(

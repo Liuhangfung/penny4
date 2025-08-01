@@ -56,6 +56,7 @@ async def update_bilibili_video(video_item: Dict):
     video_item_stat: Dict = video_item_view.get("stat")
     aid = str(video_item_view.get("aid"))
     bvid = str(video_item_view.get("bvid"))
+    duration = video_item_view.get("duration", "")
 
     save_content_item = {
         "video_id": aid,
@@ -74,7 +75,8 @@ async def update_bilibili_video(video_item: Dict):
         "video_url": f"https://www.bilibili.com/video/av{aid}",
         "video_cover_url": video_item_view.get("pic", ""),
         "source_keyword": source_keyword_var.get(),
-        "bvid":bvid
+        "bvid": bvid,
+        "duration": duration,
     }
     utils.logger.info(
         f"[store.bilibili.update_bilibili_video] bilibili bvid: {bvid}, title:{save_content_item.get('title')}"

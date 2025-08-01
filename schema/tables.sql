@@ -23,6 +23,7 @@ CREATE TABLE `bilibili_video`
     `video_url`        varchar(512) DEFAULT NULL COMMENT '视频详情URL',
     `video_cover_url`  varchar(512) DEFAULT NULL COMMENT '视频封面图 URL',
     `source_keyword`   varchar(255) DEFAULT '' COMMENT '搜索来源关键字',
+    `duration`         varchar(16)  DEFAULT NULL COMMENT '视频时长',
     PRIMARY KEY (`id`),
     KEY                `idx_bilibili_vi_video_i_31c36e` (`video_id`),
     KEY                `idx_bilibili_vi_create__73e0ec` (`create_time`)

@@ -1,12 +1,12 @@
-# 声明：本代码仅供学习和研究目的使用。使用者应遵守以下原则：  
-# 1. 不得用于任何商业用途。  
-# 2. 使用时应遵守目标平台的使用条款和robots.txt规则。  
-# 3. 不得进行大规模爬取或对平台造成运营干扰。  
-# 4. 应合理控制请求频率，避免给目标平台带来不必要的负担。   
+# 声明：本代码仅供学习和研究目的使用。使用者应遵守以下原则：
+# 1. 不得用于任何商业用途。
+# 2. 使用时应遵守目标平台的使用条款和robots.txt规则。
+# 3. 不得进行大规模爬取或对平台造成运营干扰。
+# 4. 应合理控制请求频率，避免给目标平台带来不必要的负担。
 # 5. 不得用于任何非法或不当的用途。
-#   
-# 详细许可条款请参阅项目根目录下的LICENSE文件。  
-# 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。  
+#
+# 详细许可条款请参阅项目根目录下的LICENSE文件。
+# 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。
 
 from typing import Dict, List, TYPE_CHECKING
 
@@ -33,7 +33,7 @@ class SearchHandler(BaseHandler):
         ks_client: "KuaiShouApiClient",
         checkpoint_manager: "CheckpointRepoManager",
         video_processor: "VideoProcessor",
-        comment_processor: "CommentProcessor"
+        comment_processor: "CommentProcessor",
     ):
         """
         Initialize search handler
@@ -44,7 +44,9 @@ class SearchHandler(BaseHandler):
             video_processor: Video processing component
             comment_processor: Comment processing component
         """
-        super().__init__(ks_client, checkpoint_manager, video_processor, comment_processor)
+        super().__init__(
+            ks_client, checkpoint_manager, video_processor, comment_processor
+        )
 
     async def handle(self) -> None:
         """
@@ -80,7 +82,7 @@ class SearchHandler(BaseHandler):
             if keyword_item == keyword:
                 return index
         return -1
-    
+
     async def search(self) -> None:
         """
         Search for videos and retrieve their comment information with checkpoint support.
@@ -96,30 +98,33 @@ class SearchHandler(BaseHandler):
         checkpoint = Checkpoint(
             platform=constant.KUAISHOU_PLATFORM_NAME,
             mode=constant.CRALER_TYPE_SEARCH,
-            current_search_page=1
+            current_search_page=1,
         )
 
         # 如果开启了断点续爬，则加载检查点
         if config.ENABLE_CHECKPOINT:
-            latest_checkpoint = await self.checkpoint_manager.load_checkpoint(
+            lastest_checkpoint = await self.checkpoint_manager.load_checkpoint(
                 platform=constant.KUAISHOU_PLATFORM_NAME,
                 mode=constant.CRALER_TYPE_SEARCH,
                 checkpoint_id=config.SPECIFIED_CHECKPOINT_ID,
             )
-            if latest_checkpoint:
-                checkpoint = latest_checkpoint
-                utils.logger.info(
-                    f"[SearchHandler.search] Load latest checkpoint: {latest_checkpoint.id}"
-                )
+            if lastest_checkpoint:
                 keyword_index = self._find_keyword_index_in_keyword_list(
-                    latest_checkpoint.current_search_keyword
+                    lastest_checkpoint.current_search_keyword
                 )
                 if keyword_index == -1:
-                    utils.logger.error(
-                        f"[SearchHandler.search] Keyword {latest_checkpoint.current_search_keyword} not found in keyword list"
+                    # 没有搜索到，则从第一个关键词开始爬取
+                    utils.logger.warning(
+                        f"[SearchHandler.search] Keyword {lastest_checkpoint.current_search_keyword} not found in keyword list"
                     )
-                    return
-                keyword_list = keyword_list[keyword_index:]
+                    keyword_index = 0
+                else:
+                    # 如果搜索到了，则从检查点中保存的当前关键词开始爬取
+                    checkpoint = lastest_checkpoint
+                    utils.logger.info(
+                        f"[SearchHandler.search] Load lastest checkpoint: {lastest_checkpoint.id}"
+                    )
+                    keyword_list = keyword_list[keyword_index:]
 
         for keyword in keyword_list:
             source_keyword_var.set(keyword)
@@ -172,7 +177,7 @@ class SearchHandler(BaseHandler):
 
                         # 检查是否已经爬取过
                         if await self.checkpoint_manager.check_note_is_crawled_in_checkpoint(
-                                checkpoint_id=checkpoint.id, note_id=video_id
+                            checkpoint_id=checkpoint.id, note_id=video_id
                         ):
                             utils.logger.info(
                                 f"[SearchHandler.search] video {video_id} is already crawled, skip"
@@ -187,11 +192,15 @@ class SearchHandler(BaseHandler):
                             is_success_crawled=True,
                         )
 
-                        await kuaishou_store.update_kuaishou_video(video_item=video_detail)
+                        await kuaishou_store.update_kuaishou_video(
+                            video_item=video_detail
+                        )
                         saved_video_count += 1
 
                     # 批量获取视频评论
-                    await self.comment_processor.batch_get_video_comments(video_id_list, checkpoint.id)
+                    await self.comment_processor.batch_get_video_comments(
+                        video_id_list, checkpoint.id
+                    )
                     page += 1
 
                 except Exception as ex:

@@ -30,11 +30,11 @@ class SearchHandler(BaseHandler):
     """Handles search-based crawling operations"""
 
     def __init__(
-            self,
-            bili_client: "BilibiliClient",
-            checkpoint_manager: "CheckpointRepoManager",
-            video_processor: "VideoProcessor",
-            comment_processor: "CommentProcessor",
+        self,
+        bili_client: "BilibiliClient",
+        checkpoint_manager: "CheckpointRepoManager",
+        video_processor: "VideoProcessor",
+        comment_processor: "CommentProcessor",
     ):
         """
         Initialize search handler
@@ -110,19 +110,22 @@ class SearchHandler(BaseHandler):
                 checkpoint_id=config.SPECIFIED_CHECKPOINT_ID,
             )
             if lastest_checkpoint:
-                checkpoint = lastest_checkpoint
-                utils.logger.info(
-                    f"[SearchHandler.search] Load lastest checkpoint: {lastest_checkpoint.id}"
-                )
                 keyword_index = self._find_keyword_index_in_keyword_list(
                     lastest_checkpoint.current_search_keyword
                 )
                 if keyword_index == -1:
-                    utils.logger.error(
+                    # 没有搜索到，则从第一个关键词开始爬取
+                    utils.logger.warning(
                         f"[SearchHandler.search] Keyword {lastest_checkpoint.current_search_keyword} not found in keyword list"
                     )
-                    return
-                keyword_list = keyword_list[keyword_index:]
+                    keyword_index = 0
+                else:
+                    # 如果搜索到了，则从检查点中保存的当前关键词开始爬取
+                    checkpoint = lastest_checkpoint
+                    utils.logger.info(
+                        f"[SearchHandler.search] Load lastest checkpoint: {lastest_checkpoint.id}"
+                    )
+                    keyword_list = keyword_list[keyword_index:]
 
         for keyword in keyword_list:
             source_keyword_var.set(keyword)
@@ -164,8 +167,10 @@ class SearchHandler(BaseHandler):
                         if video_item.get("type") == "video"
                     ]
 
-                    video_infos: List[VideoIdInfo] = await self.video_processor.batch_get_video_list(
-                        video_list=filtered_video_list, checkpoint_id=checkpoint.id
+                    video_infos: List[VideoIdInfo] = (
+                        await self.video_processor.batch_get_video_list(
+                            video_list=filtered_video_list, checkpoint_id=checkpoint.id
+                        )
                     )
                     await self.comment_processor.batch_get_video_comments(
                         video_infos, checkpoint_id=checkpoint.id

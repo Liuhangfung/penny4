@@ -129,15 +129,19 @@ class SearchHandler(BaseHandler):
 
         for keyword in keyword_list:
             source_keyword_var.set(keyword)
+            page = checkpoint.current_search_page
+            dy_search_id = checkpoint.current_search_id or ""
+
+            # bugfix: https://github.com/MediaCrawlerPro/MediaCrawlerPro-Python/issues/311
+            if checkpoint.current_search_keyword != keyword:
+                page = 1
+                dy_search_id = ""
 
             # 按关键字保存检查点，后面的业务行为都是基于这个检查点来更新page信息，所以需要先保存检查点
             checkpoint.current_search_keyword = keyword
             await self.checkpoint_manager.save_checkpoint(checkpoint)
-
-            utils.logger.info(f"[SearchHandler.search] Current keyword: {keyword}")
-            page = checkpoint.current_search_page
-            dy_search_id = checkpoint.current_search_id or ""
             saved_aweme_count = (page - 1) * dy_limit_count
+            utils.logger.info(f"[SearchHandler.search] Current keyword: {keyword}")
 
             while saved_aweme_count <= config.CRAWLER_MAX_NOTES_COUNT:
                 try:

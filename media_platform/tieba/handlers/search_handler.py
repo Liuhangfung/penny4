@@ -156,6 +156,11 @@ class SearchHandler(BaseHandler):
 
         for keyword in keyword_list:
             source_keyword_var.set(keyword)
+            page = checkpoint.current_search_page or 1
+
+            # bugfix: https://github.com/MediaCrawlerPro/MediaCrawlerPro-Python/issues/311
+            if checkpoint.current_search_keyword != keyword:
+                page = 1
 
             # 按关键字保存检查点，后面的业务行为都是基于这个检查点来更新page信息，所以需要先保存检查点
             checkpoint.current_search_keyword = keyword
@@ -164,7 +169,6 @@ class SearchHandler(BaseHandler):
             utils.logger.info(
                 f"[SearchHandler.search] Current search keyword: {keyword}"
             )
-            page = checkpoint.current_search_page or 1
             saved_note_count = (page - 1) * tieba_limit_count
             while saved_note_count <= config.CRAWLER_MAX_NOTES_COUNT:
                 try:

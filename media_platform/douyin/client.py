@@ -12,6 +12,7 @@
 import asyncio
 import copy
 import json
+import re
 import traceback
 import urllib.parse
 from typing import Any, Callable, Dict, List, Optional, Union
@@ -336,21 +337,23 @@ class DouYinApiClient(AbstractApiClient):
 
         """
         try:
-            res = await self.query_user_self_info()
-            if res and res.get("user_uid") and res.get("id"):
-                # 这个res中会返回当前登录用户的相关信息，其中包含了：user_agent,则更新当前的user_agent
-                if res.get("user_agent"):
-                    self._user_agent = res.get("user_agent")
+            utils.logger.info(f"[DouYinApiClient.pong] ping user is logged in...")
+            is_logged_in = await self.check_login_status_via_user_self()
+            if is_logged_in:
                 return True
         except Exception as e:
             utils.logger.error(
-                f"[DouYinApiClient.pong] pong failed, query user self response: {e}"
+                f"[DouYinApiClient.pong] 登录检测失败,请检查cookies是否失效和被临时封禁，错误信息: {e}"
             )
+
+        utils.logger.warning(
+            f"[DouYinApiClient.pong] 登录检测失败,请检查cookies是否提取正确或者是否过期，文档地址：https://github.com/MediaCrawlerPro/MediaCrawlerPro-Python/issues/8"
+        )
         return False
 
     async def query_user_self_info(self) -> Dict:
         """
-        查询用户自己的信息
+        查询用户自己的信息, 已废弃，这种检测登录态的方法已失效
         Returns:
 
         """
@@ -365,6 +368,54 @@ class DouYinApiClient(AbstractApiClient):
             )
 
         return response.json()
+
+    async def check_login_status_via_user_self(self) -> bool:
+        """
+        通过访问 https://www.douyin.com/user/self 页面并解析 HTML 中
+        setPageViewLog 的 odin 字段，提取 not_exist_login_cookie 判断是否已登录。
+
+        返回 True 表示已登录，False 表示未登录或无法判定。
+        """
+        url = f"{DOUYIN_API_URL}/user/self"
+        headers = copy.copy(self._headers)
+        headers["accept"] = (
+            "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"
+        )
+        headers["referer"] = "https://www.douyin.com/"
+
+        if "Content-Type" in headers:
+            del headers["Content-Type"]
+
+        async with httpx.AsyncClient(proxies=self._proxies) as client:
+            resp = await client.get(url, headers=headers, timeout=self.timeout)
+        html_text = resp.text or ""
+
+        # 1) 优先：从 odin 的转义 JSON 中提取
+        odin_match = re.search(
+            r'setPageViewLog\(\s*\{[^}]*"odin"\s*:\s*"((?:\\.|[^"\\])*)"',
+            html_text,
+        )
+        if odin_match:
+            odin_escaped = odin_match.group(1)
+            try:
+                # 第一次 loads 解析为内层 JSON 字符串
+                inner_json_str = json.loads(f'"{odin_escaped}"')
+                # 第二次 loads 解析为字典
+                odin_obj = json.loads(inner_json_str)
+                val = odin_obj.get("not_exist_login_cookie")
+                if isinstance(val, bool):
+                    return val is False
+                if isinstance(val, str):
+                    return val.lower() == "false"
+            except Exception:
+                pass
+
+        # 2) 兜底：直接在 HTML 文本中查找（兼容转义与非转义双引号）
+        match = re.search(r"not_exist_login_cookie\\?\"?\s*:\s*(true|false)", html_text)
+        if match:
+            return match.group(1) == "false"
+
+        return False
 
     async def search_info_by_keyword(
         self,
@@ -498,8 +549,6 @@ class DouYinApiClient(AbstractApiClient):
         headers["Referer"] = urllib.parse.quote(referer_url, safe=":/")
         return await self.get(uri, params, headers=headers)
 
-
-
     async def get_user_info(self, sec_user_id: str):
         """
         获取指定sec_user_id用户信息
@@ -542,8 +591,6 @@ class DouYinApiClient(AbstractApiClient):
             "fp": self.common_verfiy_params.verify_fp,
         }
         return await self.get(uri, params)
-
-
 
     async def get_homefeed_aweme_list(
         self,

@@ -141,10 +141,12 @@ class CreatorHandler(BaseHandler):
                     # Get all note information of the creator
                     await self.get_all_notes_by_creator(
                         user_name=creator_info.user_name,
-                        crawl_interval=random.random(),
                         creator_page_html_content=creator_page_html_content,
                         checkpoint_id=checkpoint.id
                     )
+
+                    # 爬虫请求间隔时间
+                    await asyncio.sleep(config.CRAWLER_TIME_SLEEP)
 
                 else:
                     utils.logger.error(
@@ -171,7 +173,6 @@ class CreatorHandler(BaseHandler):
     async def get_all_notes_by_creator(
             self,
             user_name: str,
-            crawl_interval: float = 1.0,
             creator_page_html_content: str = None,
             checkpoint_id: str = "",
     ) -> List[TiebaNote]:
@@ -179,7 +180,6 @@ class CreatorHandler(BaseHandler):
         根据创作者用户名获取创作者所有帖子
         Args:
             user_name: 创作者用户名
-            crawl_interval: 爬取一次笔记的延迟单位（秒）
             creator_page_html_content: 创作者主页的HTML内容
             checkpoint_id: 检查点ID
 
@@ -235,7 +235,8 @@ class CreatorHandler(BaseHandler):
             tieba_note_list: List[TiebaNote] = await self.note_processor.batch_get_note_list(note_id_list, checkpoint_id=checkpoint_id)
             await self.comment_processor.batch_get_note_comments(tieba_note_list, checkpoint_id=checkpoint_id)
 
-            await asyncio.sleep(crawl_interval)
+            # 爬虫请求间隔时间
+            await asyncio.sleep(config.CRAWLER_TIME_SLEEP)
             result.extend(notes)
             page_number += 1
             total_get_count += page_per_count

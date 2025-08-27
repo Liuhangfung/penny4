@@ -8,6 +8,7 @@
 # 详细许可条款请参阅项目根目录下的LICENSE文件。  
 # 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。  
 
+import asyncio
 import random
 from typing import Dict, List, TYPE_CHECKING
 
@@ -206,6 +207,9 @@ class CreatorHandler(BaseHandler):
                 video_ids, checkpoint_id=checkpoint_id
             )
             result.extend(videos)
+
+            # 爬虫请求间隔时间
+            await asyncio.sleep(config.CRAWLER_TIME_SLEEP)
 
             # 需要加载最新的检查点，因为在处理过程中，有对检查点的更新
             checkpoint = await self.checkpoint_manager.load_checkpoint_by_id(checkpoint_id)

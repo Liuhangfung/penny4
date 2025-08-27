@@ -109,7 +109,6 @@ class CommentProcessor:
             )
             await self.get_note_all_comments(
                 note_detail=note_detail,
-                crawl_interval=random.random(),
                 callback=tieba_store.batch_update_tieba_note_comments,
                 checkpoint_id=checkpoint_id,
             )
@@ -117,7 +116,6 @@ class CommentProcessor:
     async def get_note_all_comments(
             self,
             note_detail: TiebaNote,
-            crawl_interval: float = 1.0,
             callback: Optional[Callable] = None,
             checkpoint_id: str = ""
     ) -> List[TiebaComment]:
@@ -125,7 +123,6 @@ class CommentProcessor:
         获取指定帖子下的所有一级评论，该方法会一直查找一个帖子下的所有评论信息
         Args:
             note_detail: 帖子详情对象
-            crawl_interval: 爬取一次笔记的延迟单位（秒）
             callback: 一次笔记爬取结束后
             checkpoint_id: 检查点ID
 
@@ -174,9 +171,10 @@ class CommentProcessor:
 
             # 获取所有子评论
             await self.get_comments_all_sub_comments(
-                comments, crawl_interval=crawl_interval, callback=callback
+                comments, callback=callback
             )
-            await asyncio.sleep(crawl_interval)
+            # 爬虫请求间隔时间
+            await asyncio.sleep(config.CRAWLER_TIME_SLEEP)
 
         # 更新评论游标，标记为该帖子的评论已爬取
         await self.checkpoint_manager.update_note_comment_cursor(
@@ -191,14 +189,12 @@ class CommentProcessor:
     async def get_comments_all_sub_comments(
             self,
             comments: List[TiebaComment],
-            crawl_interval: float = 1.0,
             callback: Optional[Callable] = None,
     ) -> List[TiebaComment]:
         """
         获取指定评论下的所有子评论
         Args:
             comments: 评论列表
-            crawl_interval: 爬取一次笔记的延迟单位（秒）
             callback: 一次笔记爬取结束后
 
         Returns:
@@ -228,7 +224,8 @@ class CommentProcessor:
                     await callback(parment_comment.note_id, sub_comments)
 
                 all_sub_comments.extend(sub_comments)
-                await asyncio.sleep(crawl_interval)
+                # 爬虫请求间隔时间
+                await asyncio.sleep(config.CRAWLER_TIME_SLEEP)
                 current_page += 1
 
         return all_sub_comments

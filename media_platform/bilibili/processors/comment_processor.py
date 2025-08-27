@@ -114,7 +114,6 @@ class CommentProcessor:
                 await self.get_video_all_comments(
                     aid=aid,
                     bvid=bvid,
-                    crawl_interval=random.random(),
                     callback=bilibili_store.batch_update_bilibili_video_comments,
                     checkpoint_id=checkpoint_id
                 )
@@ -132,7 +131,6 @@ class CommentProcessor:
             self,
             aid: str,
             bvid: str,
-            crawl_interval: float = 1.0,
             callback: Optional[Callable] = None,
             checkpoint_id: str = "",
     ):
@@ -141,7 +139,6 @@ class CommentProcessor:
         Args:
             aid: 视频ID (aid)
             bvid: 视频ID (bvid)
-            crawl_interval: 爬取间隔
             callback: 回调函数
             checkpoint_id: 检查点ID
 
@@ -180,7 +177,8 @@ class CommentProcessor:
             if callback:
                 await callback(aid, comment_list)
 
-            await asyncio.sleep(crawl_interval)
+            # 爬虫请求间隔时间
+            await asyncio.sleep(config.CRAWLER_TIME_SLEEP)
             result.extend(comment_list)
 
             if (
@@ -192,7 +190,7 @@ class CommentProcessor:
                 )
                 break
             sub_comments = await self.get_comments_all_sub_comments(
-                aid, comment_list, crawl_interval, callback
+                aid, comment_list, callback
             )
             result.extend(sub_comments)
 
@@ -210,7 +208,6 @@ class CommentProcessor:
             self,
             video_id: str,
             comments: List[Dict],
-            crawl_interval: float = 1.0,
             callback: Optional[Callable] = None,
     ) -> List[Dict]:
         """
@@ -218,7 +215,6 @@ class CommentProcessor:
         Args:
             video_id: 视频ID
             comments: 评论列表
-            crawl_interval: 爬取一次评论的延迟单位（秒）
             callback: 一次评论爬取结束后
 
         Returns:
@@ -249,7 +245,9 @@ class CommentProcessor:
                 sub_comments = sub_comments_res.get("replies", [])
                 if callback:
                     await callback(video_id, sub_comments)
-                await asyncio.sleep(crawl_interval)
+
+                # 爬虫请求间隔时间
+                await asyncio.sleep(config.CRAWLER_TIME_SLEEP)
                 result.extend(sub_comments)
                 sub_comment_has_more = (
                         sub_comments_res.get("page").get("count") > page_num * page_size

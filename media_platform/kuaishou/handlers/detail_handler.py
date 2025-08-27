@@ -8,6 +8,7 @@
 # 详细许可条款请参阅项目根目录下的LICENSE文件。  
 # 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。  
 
+import asyncio
 from typing import TYPE_CHECKING
 
 import config
@@ -83,5 +84,8 @@ class DetailHandler(BaseHandler):
         
         # 批量获取视频评论
         await self.comment_processor.batch_get_video_comments(processed_video_ids, checkpoint.id)
+        
+        # 爬虫请求间隔时间
+        await asyncio.sleep(config.CRAWLER_TIME_SLEEP)
         
         utils.logger.info("[DetailHandler.get_specified_videos] Completed processing specified videos")

@@ -8,6 +8,7 @@
 # 详细许可条款请参阅项目根目录下的LICENSE文件。  
 # 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。  
 
+import asyncio
 from typing import Dict, List, TYPE_CHECKING
 
 import config
@@ -142,6 +143,9 @@ class HomefeedHandler(BaseHandler):
                 await self.comment_processor.batch_get_video_comments(video_id_list, checkpoint.id)
 
                 pcursor = brilliant_type_data.get("pcursor", "")
+
+                # 爬虫请求间隔时间
+                await asyncio.sleep(config.CRAWLER_TIME_SLEEP)
 
                 utils.logger.info(
                     f"[HomefeedHandler.get_homefeed_videos] Get homefeed videos, saved_video_count: {saved_video_count}"

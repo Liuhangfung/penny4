@@ -217,4 +217,7 @@ class CreatorHandler(BaseHandler):
             checkpoint.current_creator_page = since_id
             await self.checkpoint_manager.update_checkpoint(checkpoint)
 
+            # 爬虫请求间隔时间
+            await asyncio.sleep(config.CRAWLER_TIME_SLEEP)
+
         return result

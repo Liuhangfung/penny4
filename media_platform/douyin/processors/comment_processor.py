@@ -116,7 +116,6 @@ class CommentProcessor:
                 # 获取视频的所有评论
                 await self.get_aweme_all_comments(
                     aweme_id=aweme_id,
-                    crawl_interval=random.random(),
                     callback=douyin_store.batch_update_dy_aweme_comments,
                     checkpoint_id=checkpoint_id
                 )
@@ -131,7 +130,6 @@ class CommentProcessor:
     async def get_aweme_all_comments(
         self,
         aweme_id: str,
-        crawl_interval: float = 1.0,
         callback: Optional[Callable] = None,
         checkpoint_id: str = ""
     ):
@@ -139,7 +137,6 @@ class CommentProcessor:
         获取视频的所有评论
         Args:
             aweme_id: 视频ID
-            crawl_interval: 延时
             callback: 回调函数
             checkpoint_id: 检查点ID
 
@@ -195,9 +192,10 @@ class CommentProcessor:
                     f"[CommentProcessor.get_aweme_all_comments] The number of comments exceeds the limit: {PER_NOTE_MAX_COMMENTS_COUNT}"
                 )
                 break
-            await asyncio.sleep(crawl_interval)
+            # 爬虫请求间隔时间
+            await asyncio.sleep(config.CRAWLER_TIME_SLEEP)
             sub_comments = await self.get_comments_all_sub_comments(
-                aweme_id, comments, crawl_interval, callback
+                aweme_id, comments, callback
             )
             result.extend(sub_comments)
 
@@ -216,7 +214,6 @@ class CommentProcessor:
         self,
         aweme_id: str,
         comments: List[Dict],
-        crawl_interval: float = 1.0,
         callback: Optional[Callable] = None,
     ) -> List[Dict]:
         """
@@ -224,7 +221,6 @@ class CommentProcessor:
         Args:
             aweme_id: 视频ID
             comments: 评论列表
-            crawl_interval: 爬取一次评论的延迟单位（秒）
             callback: 一次评论爬取结束后
 
         Returns:
@@ -254,5 +250,7 @@ class CommentProcessor:
                     result.extend(sub_comments)
                     if callback:  # 如果有回调函数，就执行回调函数
                         await callback(aweme_id, sub_comments)
-                    await asyncio.sleep(crawl_interval)
+
+                    # 爬虫请求间隔时间
+                    await asyncio.sleep(config.CRAWLER_TIME_SLEEP)
         return result

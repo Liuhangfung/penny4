@@ -8,6 +8,7 @@
 # 详细许可条款请参阅项目根目录下的LICENSE文件。  
 # 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。  
 
+import asyncio
 import json
 from typing import Dict, List, TYPE_CHECKING
 
@@ -148,6 +149,9 @@ class HomefeedHandler(BaseHandler):
                     aweme_ids, checkpoint_id=checkpoint.id
                 )
                 current_refresh_index += per_page_count
+
+                # 爬虫请求间隔时间
+                await asyncio.sleep(config.CRAWLER_TIME_SLEEP)
 
             except Exception as ex:
                 utils.logger.error(

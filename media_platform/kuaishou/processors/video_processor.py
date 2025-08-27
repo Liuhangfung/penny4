@@ -11,6 +11,7 @@
 import asyncio
 from typing import Dict, List, Optional, TYPE_CHECKING
 
+import config
 from pkg.tools import utils
 from repo.platform_save_data import kuaishou as kuaishou_store
 from ..exception import DataFetchError
@@ -85,6 +86,9 @@ class VideoProcessor:
                     is_success_crawled_comments=False,
                     current_note_comment_cursor=None,
                 )
+                
+                # 爬虫请求间隔时间
+                await asyncio.sleep(config.CRAWLER_TIME_SLEEP)
         
         return video_detail
     

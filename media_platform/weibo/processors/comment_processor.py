@@ -111,7 +111,6 @@ class CommentProcessor:
             try:
                 await self.get_note_all_comments(
                     note_id=note_id,
-                    crawl_interval=random.randint(1, 3),  # 微博对API的限流比较严重，所以延时提高一些
                     callback=weibo_store.batch_update_weibo_note_comments,
                     checkpoint_id=checkpoint_id
                 )
@@ -130,7 +129,6 @@ class CommentProcessor:
     async def get_note_all_comments(
         self,
         note_id: str,
-        crawl_interval: float = 1.0,
         callback: Optional[Callable] = None,
         checkpoint_id: str = "",
     ):
@@ -138,7 +136,6 @@ class CommentProcessor:
         获取指定微博下的所有一级评论，该方法会一直查找一个微博下的所有评论信息
         Args:
             note_id: 微博ID
-            crawl_interval: 爬取间隔
             callback: 回调函数
             checkpoint_id: 检查点ID
 
@@ -182,7 +179,8 @@ class CommentProcessor:
             if callback:  # 如果有回调函数，就执行回调函数
                 await callback(note_id, comment_list)
 
-            await asyncio.sleep(crawl_interval)
+            # 爬虫请求间隔时间
+            await asyncio.sleep(config.CRAWLER_TIME_SLEEP)
             result.extend(comment_list)
 
             if (

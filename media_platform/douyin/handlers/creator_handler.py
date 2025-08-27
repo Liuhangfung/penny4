@@ -8,6 +8,7 @@
 # 详细许可条款请参阅项目根目录下的LICENSE文件。  
 # 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。  
 
+import asyncio
 from typing import Dict, TYPE_CHECKING, Optional, Callable
 
 import config
@@ -195,5 +196,8 @@ class CreatorHandler(BaseHandler):
             checkpoint = await self.checkpoint_manager.load_checkpoint_by_id(checkpoint_id)
             checkpoint.current_creator_page = str(max_cursor)
             await self.checkpoint_manager.update_checkpoint(checkpoint)
+
+            # 爬虫请求间隔时间
+            await asyncio.sleep(config.CRAWLER_TIME_SLEEP)
 
         return result

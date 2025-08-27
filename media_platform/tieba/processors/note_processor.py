@@ -11,6 +11,7 @@
 import asyncio
 from typing import List, Optional, TYPE_CHECKING
 
+import config
 from model.m_baidu_tieba import TiebaNote
 from pkg.tools import utils
 from repo.platform_save_data import tieba as tieba_store
@@ -87,6 +88,9 @@ class NoteProcessor:
                     is_success_crawled_comments=False,
                     current_note_comment_cursor=None,
                 )
+                
+                # 爬虫请求间隔时间
+                await asyncio.sleep(config.CRAWLER_TIME_SLEEP)
 
     async def batch_get_note_list(
             self, note_id_list: List[str], checkpoint_id: str = ""

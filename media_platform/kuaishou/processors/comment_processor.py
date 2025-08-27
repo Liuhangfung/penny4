@@ -105,7 +105,6 @@ class CommentProcessor:
                 # 获取视频的所有评论
                 await self.get_video_all_comments(
                     photo_id=video_id,
-                    crawl_interval=random.random(),
                     callback=kuaishou_store.batch_update_ks_video_comments,
                     checkpoint_id=checkpoint_id
                 )
@@ -124,7 +123,6 @@ class CommentProcessor:
     async def get_video_all_comments(
         self,
         photo_id: str,
-        crawl_interval: float = 1.0,
         callback: Optional[Callable] = None,
         checkpoint_id: str = "",
     ):
@@ -133,7 +131,6 @@ class CommentProcessor:
         
         Args:
             photo_id: 视频ID
-            crawl_interval: 爬取一次评论的延迟单位（秒）
             callback: 一次评论爬取结束后的回调函数
             checkpoint_id: checkpoint id for resume functionality
             
@@ -182,9 +179,10 @@ class CommentProcessor:
                     )
                     break
                     
-                await asyncio.sleep(crawl_interval)
+                # 爬虫请求间隔时间
+                await asyncio.sleep(config.CRAWLER_TIME_SLEEP)
                 sub_comments = await self.get_comments_all_sub_comments(
-                    comments, photo_id, crawl_interval, callback
+                    comments, photo_id, callback
                 )
                 result.extend(sub_comments)
                 
@@ -208,7 +206,6 @@ class CommentProcessor:
         self,
         comments: List[Dict],
         photo_id: str,
-        crawl_interval: float = 1.0,
         callback: Optional[Callable] = None,
     ) -> List[Dict]:
         """
@@ -216,7 +213,6 @@ class CommentProcessor:
         Args:
             comments: 评论列表
             photo_id: 视频ID
-            crawl_interval: 爬取一次评论的延迟单位（秒）
             callback: 一次评论爬取结束后的回调函数
 
         Returns:
@@ -252,7 +248,8 @@ class CommentProcessor:
                     sub_comments = vision_sub_comment_list.get("subComments", [])
                     if callback:
                         await callback(photo_id, sub_comments)
-                    await asyncio.sleep(crawl_interval)
+                    # 爬虫请求间隔时间
+                    await asyncio.sleep(config.CRAWLER_TIME_SLEEP)
                     result.extend(sub_comments)
                 except Exception as e:
                     utils.logger.error(

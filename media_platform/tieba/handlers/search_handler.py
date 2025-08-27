@@ -8,6 +8,7 @@
 # 详细许可条款请参阅项目根目录下的LICENSE文件。
 # 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。
 
+import asyncio
 from typing import List, TYPE_CHECKING
 
 import config
@@ -201,6 +202,9 @@ class SearchHandler(BaseHandler):
 
                     page += 1
 
+                    # 爬虫请求间隔时间
+                    await asyncio.sleep(config.CRAWLER_TIME_SLEEP)
+
                 except Exception as ex:
                     utils.logger.error(
                         f"[SearchHandler.search] Search notes error: {ex}"
@@ -309,6 +313,9 @@ class SearchHandler(BaseHandler):
                     )
 
                     page_number += tieba_limit_count
+
+                    # 爬虫请求间隔时间
+                    await asyncio.sleep(config.CRAWLER_TIME_SLEEP)
 
                 except Exception as ex:
                     utils.logger.error(

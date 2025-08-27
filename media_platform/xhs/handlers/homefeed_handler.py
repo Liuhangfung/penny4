@@ -1,13 +1,14 @@
-# 声明：本代码仅供学习和研究目的使用。使用者应遵守以下原则：  
-# 1. 不得用于任何商业用途。  
-# 2. 使用时应遵守目标平台的使用条款和robots.txt规则。  
-# 3. 不得进行大规模爬取或对平台造成运营干扰。  
-# 4. 应合理控制请求频率，避免给目标平台带来不必要的负担。   
+# 声明：本代码仅供学习和研究目的使用。使用者应遵守以下原则：
+# 1. 不得用于任何商业用途。
+# 2. 使用时应遵守目标平台的使用条款和robots.txt规则。
+# 3. 不得进行大规模爬取或对平台造成运营干扰。
+# 4. 应合理控制请求频率，避免给目标平台带来不必要的负担。
 # 5. 不得用于任何非法或不当的用途。
-#   
-# 详细许可条款请参阅项目根目录下的LICENSE文件。  
-# 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。  
+#
+# 详细许可条款请参阅项目根目录下的LICENSE文件。
+# 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。
 
+import asyncio
 from typing import Dict, List, TYPE_CHECKING
 
 import config
@@ -28,27 +29,29 @@ class HomefeedHandler(BaseHandler):
     """Handles homefeed-based crawling operations"""
 
     def __init__(
-            self,
-            xhs_client: "XiaoHongShuClient",
-            checkpoint_manager: "CheckpointRepoManager",
-            note_processor: "NoteProcessor",
-            comment_processor: "CommentProcessor"
+        self,
+        xhs_client: "XiaoHongShuClient",
+        checkpoint_manager: "CheckpointRepoManager",
+        note_processor: "NoteProcessor",
+        comment_processor: "CommentProcessor",
     ):
         """
         Initialize homefeed handler
-        
+
         Args:
             xhs_client: XiaoHongShu API client
             checkpoint_manager: Checkpoint manager for resume functionality
             note_processor: Note processing component
             comment_processor: Comment processing component
         """
-        super().__init__(xhs_client, checkpoint_manager, note_processor, comment_processor)
+        super().__init__(
+            xhs_client, checkpoint_manager, note_processor, comment_processor
+        )
 
     async def handle(self) -> None:
         """
         Handle homefeed-based crawling
-        
+
         Returns:
             None
         """
@@ -69,7 +72,7 @@ class HomefeedHandler(BaseHandler):
             platform=constant.XHS_PLATFORM_NAME,
             mode=constant.CRALER_TYPE_HOMEFEED,
             current_homefeed_cursor="",
-            current_homefeed_note_index=0
+            current_homefeed_note_index=0,
         )
 
         # 如果开启了断点续爬，则加载检查点
@@ -125,8 +128,12 @@ class HomefeedHandler(BaseHandler):
                     if not note_item.is_success_crawled:
                         compensation_note_item = {
                             "note_id": note_item.note_id,
-                            "xsec_token": note_item.extra_params_info.get("xsec_token", ""),
-                            "xsec_source": note_item.extra_params_info.get("xsec_source", ""),
+                            "xsec_token": note_item.extra_params_info.get(
+                                "xsec_token", ""
+                            ),
+                            "xsec_source": note_item.extra_params_info.get(
+                                "xsec_source", ""
+                            ),
                         }
                         note_items.append(compensation_note_item)
                         compensation_note_ids.add(note_item.note_id)
@@ -144,9 +151,10 @@ class HomefeedHandler(BaseHandler):
                             }
                             note_items.append(note_item)
 
-                note_id_list, xsec_tokens = await self.note_processor.batch_get_note_list(
-                    note_list=note_items,
-                    checkpoint_id=checkpoint.id
+                note_id_list, xsec_tokens = (
+                    await self.note_processor.batch_get_note_list(
+                        note_list=note_items, checkpoint_id=checkpoint.id
+                    )
                 )
                 await self.comment_processor.batch_get_note_comments(
                     note_id_list, xsec_tokens, checkpoint_id=checkpoint.id
@@ -154,6 +162,9 @@ class HomefeedHandler(BaseHandler):
 
                 current_cursor = cursor_score
                 note_index += note_num
+
+                # 爬虫请求间隔时间
+                await asyncio.sleep(config.CRAWLER_TIME_SLEEP)
 
             except Exception as ex:
                 utils.logger.error(

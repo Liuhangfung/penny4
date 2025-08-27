@@ -1,12 +1,12 @@
-# 声明：本代码仅供学习和研究目的使用。使用者应遵守以下原则：  
-# 1. 不得用于任何商业用途。  
-# 2. 使用时应遵守目标平台的使用条款和robots.txt规则。  
-# 3. 不得进行大规模爬取或对平台造成运营干扰。  
-# 4. 应合理控制请求频率，避免给目标平台带来不必要的负担。   
+# 声明：本代码仅供学习和研究目的使用。使用者应遵守以下原则：
+# 1. 不得用于任何商业用途。
+# 2. 使用时应遵守目标平台的使用条款和robots.txt规则。
+# 3. 不得进行大规模爬取或对平台造成运营干扰。
+# 4. 应合理控制请求频率，避免给目标平台带来不必要的负担。
 # 5. 不得用于任何非法或不当的用途。
-#   
-# 详细许可条款请参阅项目根目录下的LICENSE文件。  
-# 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。  
+#
+# 详细许可条款请参阅项目根目录下的LICENSE文件。
+# 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。
 
 import asyncio
 import random
@@ -25,16 +25,16 @@ if TYPE_CHECKING:
 
 class CommentProcessor:
     """Handles comment processing operations including batch processing and sub-comments"""
-    
+
     def __init__(
         self,
         xhs_client: "XiaoHongShuClient",
         checkpoint_manager: "CheckpointRepoManager",
-        crawler_note_comment_semaphore: asyncio.Semaphore
+        crawler_note_comment_semaphore: asyncio.Semaphore,
     ):
         """
         Initialize comment processor
-        
+
         Args:
             xhs_client: XiaoHongShu API client
             checkpoint_manager: Checkpoint manager for resume functionality
@@ -43,7 +43,7 @@ class CommentProcessor:
         self.xhs_client = xhs_client
         self.checkpoint_manager = checkpoint_manager
         self.crawler_note_comment_semaphore = crawler_note_comment_semaphore
-    
+
     async def batch_get_note_comments(
         self,
         note_list: List[str],
@@ -116,7 +116,6 @@ class CommentProcessor:
             )
             await self.get_note_all_comments(
                 note_id=note_id,
-                crawl_interval=random.random(),
                 callback=xhs_store.batch_update_xhs_note_comments,
                 xsec_token=xsec_token,
                 checkpoint_id=checkpoint_id,
@@ -125,7 +124,6 @@ class CommentProcessor:
     async def get_note_all_comments(
         self,
         note_id: str,
-        crawl_interval: float = 1.0,
         callback: Optional[Callable] = None,
         xsec_token: str = "",
         checkpoint_id: str = "",
@@ -134,7 +132,6 @@ class CommentProcessor:
         获取指定笔记下的所有一级评论，该方法会一直查找一个帖子下的所有评论信息
         Args:
             note_id: 笔记ID
-            crawl_interval: 爬取一次笔记的延迟单位（秒）
             callback: 一次笔记爬取结束后
             xsec_token: 验证token
             checkpoint_id: 检查点ID
@@ -184,7 +181,9 @@ class CommentProcessor:
             if callback:
                 await callback(note_id, comments, xsec_token)
 
-            await asyncio.sleep(crawl_interval)
+            # 爬虫请求间隔时间
+            await asyncio.sleep(config.CRAWLER_TIME_SLEEP)
+
             result.extend(comments)
 
             if (
@@ -196,7 +195,7 @@ class CommentProcessor:
                 )
                 break
             sub_comments = await self.get_comments_all_sub_comments(
-                comments, crawl_interval, callback, xsec_token
+                comments, callback, xsec_token
             )
             result.extend(sub_comments)
 
@@ -213,7 +212,6 @@ class CommentProcessor:
     async def get_comments_all_sub_comments(
         self,
         comments: List[Dict],
-        crawl_interval: float = 1.0,
         callback: Optional[Callable] = None,
         xsec_token: str = "",
     ) -> List[Dict]:
@@ -266,6 +264,8 @@ class CommentProcessor:
                 comments = comments_res["comments"]
                 if callback:
                     await callback(note_id, comments, xsec_token, root_comment_id)
-                await asyncio.sleep(crawl_interval)
+
+                # 爬虫请求间隔时间
+                await asyncio.sleep(config.CRAWLER_TIME_SLEEP)
                 result.extend(comments)
         return result

@@ -1,12 +1,12 @@
-# 声明：本代码仅供学习和研究目的使用。使用者应遵守以下原则：  
-# 1. 不得用于任何商业用途。  
-# 2. 使用时应遵守目标平台的使用条款和robots.txt规则。  
-# 3. 不得进行大规模爬取或对平台造成运营干扰。  
-# 4. 应合理控制请求频率，避免给目标平台带来不必要的负担。   
+# 声明：本代码仅供学习和研究目的使用。使用者应遵守以下原则：
+# 1. 不得用于任何商业用途。
+# 2. 使用时应遵守目标平台的使用条款和robots.txt规则。
+# 3. 不得进行大规模爬取或对平台造成运营干扰。
+# 4. 应合理控制请求频率，避免给目标平台带来不必要的负担。
 # 5. 不得用于任何非法或不当的用途。
-#   
-# 详细许可条款请参阅项目根目录下的LICENSE文件。  
-# 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。  
+#
+# 详细许可条款请参阅项目根目录下的LICENSE文件。
+# 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。
 
 import asyncio
 from typing import Dict, List, Optional, TYPE_CHECKING
@@ -29,29 +29,31 @@ if TYPE_CHECKING:
 
 class CreatorHandler(BaseHandler):
     """Handles creator-based crawling operations"""
-    
+
     def __init__(
         self,
         xhs_client: "XiaoHongShuClient",
         checkpoint_manager: "CheckpointRepoManager",
         note_processor: "NoteProcessor",
-        comment_processor: "CommentProcessor"
+        comment_processor: "CommentProcessor",
     ):
         """
         Initialize creator handler
-        
+
         Args:
             xhs_client: XiaoHongShu API client
             checkpoint_manager: Checkpoint manager for resume functionality
             note_processor: Note processing component
             comment_processor: Comment processing component
         """
-        super().__init__(xhs_client, checkpoint_manager, note_processor, comment_processor)
-    
+        super().__init__(
+            xhs_client, checkpoint_manager, note_processor, comment_processor
+        )
+
     async def handle(self) -> None:
         """
         Handle creator-based crawling
-        
+
         Returns:
             None
         """
@@ -86,7 +88,9 @@ class CreatorHandler(BaseHandler):
         utils.logger.info(
             "[CreatorHandler.get_creators_and_notes] Begin get xiaohongshu creators"
         )
-        checkpoint = Checkpoint(platform=constant.XHS_PLATFORM_NAME, mode=constant.CRALER_TYPE_CREATOR)
+        checkpoint = Checkpoint(
+            platform=constant.XHS_PLATFORM_NAME, mode=constant.CRALER_TYPE_CREATOR
+        )
         creator_list = config.XHS_CREATOR_URL_LIST
         if config.ENABLE_CHECKPOINT:
             lastest_checkpoint = await self.checkpoint_manager.load_checkpoint(
@@ -134,7 +138,6 @@ class CreatorHandler(BaseHandler):
             # Get all note information of the creator
             await self.get_all_notes_by_creator(
                 user_id=creator_url_info.creator_id,
-                crawl_interval=0,
                 xsec_token=creator_url_info.xsec_token,
                 xsec_source=creator_url_info.xsec_source,
                 checkpoint_id=checkpoint.id,
@@ -143,7 +146,6 @@ class CreatorHandler(BaseHandler):
     async def get_all_notes_by_creator(
         self,
         user_id: str,
-        crawl_interval: float = 1.0,
         xsec_token: str = "",
         xsec_source: str = "",
         checkpoint_id: str = "",
@@ -152,7 +154,6 @@ class CreatorHandler(BaseHandler):
         获取指定用户下的所有发过的帖子，该方法会一直查找一个用户下的所有帖子信息
         Args:
             user_id: 用户ID
-            crawl_interval: 爬取一次的延迟单位（秒）
             xsec_token: 验证token
             xsec_source: 渠道来源
             checkpoint_id: 检查点ID
@@ -197,16 +198,23 @@ class CreatorHandler(BaseHandler):
             utils.logger.info(
                 f"[CreatorHandler.get_all_notes_by_creator] got user_id:{user_id} notes len : {len(notes)}, notes_cursor: {notes_cursor}"
             )
-            note_ids, xsec_tokens = await self.note_processor.batch_get_note_list(notes, checkpoint_id=checkpoint_id)
+            note_ids, xsec_tokens = await self.note_processor.batch_get_note_list(
+                notes, checkpoint_id=checkpoint_id
+            )
             await self.comment_processor.batch_get_note_comments(
                 note_ids, xsec_tokens, checkpoint_id=checkpoint_id
             )
-            await asyncio.sleep(crawl_interval)
+
             result.extend(notes)
             saved_creator_count += len(notes)
 
             # 需要加载最新的检查点，因为在fetch_creator_notes_detail方法中，有对检查点左边
-            checkpoint = await self.checkpoint_manager.load_checkpoint_by_id(checkpoint_id)
+            checkpoint = await self.checkpoint_manager.load_checkpoint_by_id(
+                checkpoint_id
+            )
             checkpoint.current_creator_page = notes_cursor
             await self.checkpoint_manager.update_checkpoint(checkpoint)
+
+            # 爬虫请求间隔时间
+            await asyncio.sleep(config.CRAWLER_TIME_SLEEP)
         return result

@@ -661,9 +661,10 @@ class XiaoHongShuClient(AbstractApiClient):
         ip_proxies = self._proxies
         for current_retry in range(1, retry_times + 1):
             copy_headers = self.headers.copy()
-            if current_retry <= 3:
-                # 前三次删除cookie，直接不带登录态请求网页
-                del copy_headers["cookie"]
+            # 20250901 目前只有权重高的xhs账号产生的xsectoken才能不携带登录态请求网页
+            # if current_retry <= 3:
+            #     # 前三次删除cookie，直接不带登录态请求网页
+            #     del copy_headers["cookie"]
 
             async with httpx.AsyncClient(proxies=ip_proxies) as client:
                 try:

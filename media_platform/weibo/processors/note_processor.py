@@ -61,6 +61,7 @@ class NoteProcessor:
             try:
                 note_detail = await self.wb_client.get_note_info_by_id(note_id)
                 if note_detail:
+                    await weibo_store.update_weibo_note(note_detail)
                     return note_detail
 
             except DataFetchError as ex:
@@ -181,9 +182,5 @@ class NoteProcessor:
             task_list.append(task)
             processed_note_ids.append(note_id)
 
-        note_details = await asyncio.gather(*task_list)
-        for note_detail in note_details:
-            if note_detail:
-                await weibo_store.update_weibo_note(note_detail)
-
+        await asyncio.gather(*task_list)
         return processed_note_ids

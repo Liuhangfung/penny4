@@ -1,12 +1,12 @@
-# 声明：本代码仅供学习和研究目的使用。使用者应遵守以下原则：  
-# 1. 不得用于任何商业用途。  
-# 2. 使用时应遵守目标平台的使用条款和robots.txt规则。  
-# 3. 不得进行大规模爬取或对平台造成运营干扰。  
-# 4. 应合理控制请求频率，避免给目标平台带来不必要的负担。   
+# 声明：本代码仅供学习和研究目的使用。使用者应遵守以下原则：
+# 1. 不得用于任何商业用途。
+# 2. 使用时应遵守目标平台的使用条款和robots.txt规则。
+# 3. 不得进行大规模爬取或对平台造成运营干扰。
+# 4. 应合理控制请求频率，避免给目标平台带来不必要的负担。
 # 5. 不得用于任何非法或不当的用途。
-#   
-# 详细许可条款请参阅项目根目录下的LICENSE文件。  
-# 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。  
+#
+# 详细许可条款请参阅项目根目录下的LICENSE文件。
+# 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。
 
 import asyncio
 from typing import List, Optional, TYPE_CHECKING
@@ -25,14 +25,14 @@ class NoteProcessor:
     """Handles note processing operations including detail extraction and batch processing"""
 
     def __init__(
-            self,
-            tieba_client: "BaiduTieBaClient",
-            checkpoint_manager: "CheckpointRepoManager",
-            crawler_note_task_semaphore: asyncio.Semaphore
+        self,
+        tieba_client: "BaiduTieBaClient",
+        checkpoint_manager: "CheckpointRepoManager",
+        crawler_note_task_semaphore: asyncio.Semaphore,
     ):
         """
         Initialize note processor
-        
+
         Args:
             tieba_client: Tieba API client
             checkpoint_manager: Checkpoint manager for resume functionality
@@ -43,13 +43,13 @@ class NoteProcessor:
         self.crawler_note_task_semaphore = crawler_note_task_semaphore
 
     async def get_note_detail_async_task(
-            self,
-            note_id: str,
-            checkpoint_id: str,
+        self,
+        note_id: str,
+        checkpoint_id: str,
     ) -> Optional[TiebaNote]:
         """
         Get note detail
-        
+
         Args:
             note_id: tieba note id
             checkpoint_id: checkpoint id
@@ -68,6 +68,7 @@ class NoteProcessor:
                         f"[NoteProcessor.get_note_detail_async_task] Get note detail error, note_id: {note_id}"
                     )
                     return None
+                await tieba_store.update_tieba_note(note_detail)
                 return note_detail
             except Exception as ex:
                 utils.logger.error(
@@ -88,12 +89,12 @@ class NoteProcessor:
                     is_success_crawled_comments=False,
                     current_note_comment_cursor=None,
                 )
-                
+
                 # 爬虫请求间隔时间
                 await asyncio.sleep(config.CRAWLER_TIME_SLEEP)
 
     async def batch_get_note_list(
-            self, note_id_list: List[str], checkpoint_id: str = ""
+        self, note_id_list: List[str], checkpoint_id: str = ""
     ) -> List[TiebaNote]:
         """
         Concurrently obtain the specified post list and save the data
@@ -110,7 +111,7 @@ class NoteProcessor:
                 continue
 
             if await self.checkpoint_manager.check_note_is_crawled_in_checkpoint(
-                    checkpoint_id=checkpoint_id, note_id=note_id
+                checkpoint_id=checkpoint_id, note_id=note_id
             ):
                 utils.logger.info(
                     f"[NoteProcessor.batch_get_note_list] Note {note_id} is already crawled, skip"
@@ -132,6 +133,4 @@ class NoteProcessor:
         for note_detail in note_details:
             if note_detail:
                 note_details_model.append(note_detail)
-                await tieba_store.update_tieba_note(note_detail)
-
         return note_details_model

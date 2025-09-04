@@ -80,6 +80,7 @@ class NoteProcessor:
                     note_detail.update(
                         {"xsec_token": xsec_token, "xsec_source": xsec_source}
                     )
+                    await xhs_store.update_xhs_note(note_detail)
                     return note_detail
 
             except DataFetchError as ex:
@@ -158,9 +159,5 @@ class NoteProcessor:
             )
             task_list.append(task)
 
-        note_details = await asyncio.gather(*task_list)
-        for note_detail in note_details:
-            if note_detail:
-                await xhs_store.update_xhs_note(note_detail)
-
+        await asyncio.gather(*task_list)
         return note_ids, xsec_tokens

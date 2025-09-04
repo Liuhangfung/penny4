@@ -1,12 +1,12 @@
-# 声明：本代码仅供学习和研究目的使用。使用者应遵守以下原则：  
-# 1. 不得用于任何商业用途。  
-# 2. 使用时应遵守目标平台的使用条款和robots.txt规则。  
-# 3. 不得进行大规模爬取或对平台造成运营干扰。  
-# 4. 应合理控制请求频率，避免给目标平台带来不必要的负担。   
+# 声明：本代码仅供学习和研究目的使用。使用者应遵守以下原则：
+# 1. 不得用于任何商业用途。
+# 2. 使用时应遵守目标平台的使用条款和robots.txt规则。
+# 3. 不得进行大规模爬取或对平台造成运营干扰。
+# 4. 应合理控制请求频率，避免给目标平台带来不必要的负担。
 # 5. 不得用于任何非法或不当的用途。
-#   
-# 详细许可条款请参阅项目根目录下的LICENSE文件。  
-# 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。  
+#
+# 详细许可条款请参阅项目根目录下的LICENSE文件。
+# 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。
 
 import asyncio
 from typing import Callable, Dict, List, Optional, TYPE_CHECKING
@@ -22,16 +22,16 @@ if TYPE_CHECKING:
 
 class AwemeProcessor:
     """Handles aweme processing operations including detail extraction and batch processing"""
-    
+
     def __init__(
         self,
         dy_client: "DouYinApiClient",
         checkpoint_manager: "CheckpointRepoManager",
-        crawler_aweme_task_semaphore: asyncio.Semaphore
+        crawler_aweme_task_semaphore: asyncio.Semaphore,
     ):
         """
         Initialize aweme processor
-        
+
         Args:
             dy_client: Douyin API client
             checkpoint_manager: Checkpoint manager for resume functionality
@@ -40,7 +40,7 @@ class AwemeProcessor:
         self.dy_client = dy_client
         self.checkpoint_manager = checkpoint_manager
         self.crawler_aweme_task_semaphore = crawler_aweme_task_semaphore
-    
+
     async def get_aweme_detail_async_task(
         self,
         aweme_id: str,
@@ -60,6 +60,7 @@ class AwemeProcessor:
             try:
                 aweme_detail = await self.dy_client.get_video_by_id(aweme_id)
                 if aweme_detail:
+                    await douyin_store.update_douyin_aweme(aweme_detail)
                     return aweme_detail
 
             except DataFetchError as ex:
@@ -84,54 +85,7 @@ class AwemeProcessor:
                         is_success_crawled_comments=False,
                         current_note_comment_cursor=None,
                     )
-    
-    async def batch_get_aweme_list(
-        self, aweme_list: List[Dict], checkpoint_id
-    ) -> List[str]:
-        """
-        Concurrently obtain the specified aweme list and save the data
-        Args:
-            aweme_list: List of aweme items with aweme_id
-            checkpoint_id: Checkpoint ID
 
-        Returns:
-            List of aweme IDs
-        """
-        task_list, aweme_ids = [], []
-        for aweme_item in aweme_list:
-            aweme_id = aweme_item.get("aweme_id", "")
-            if not aweme_id:
-                continue
-
-            aweme_ids.append(aweme_id)
-
-            if await self.checkpoint_manager.check_note_is_crawled_in_checkpoint(
-                checkpoint_id=checkpoint_id, note_id=aweme_item.get("aweme_id", "")
-            ):
-                utils.logger.info(
-                    f"[AwemeProcessor.batch_get_aweme_list] Aweme {aweme_item.get('aweme_id', '')} is already crawled, skip"
-                )
-                continue
-
-            await self.checkpoint_manager.add_note_to_checkpoint(
-                checkpoint_id=checkpoint_id,
-                note_id=aweme_item.get("aweme_id", ""),
-                extra_params_info={},
-            )
-            
-            task = self.get_aweme_detail_async_task(
-                aweme_id=aweme_item.get("aweme_id", ""),
-                checkpoint_id=checkpoint_id,
-            )
-            task_list.append(task)
-
-        aweme_details = await asyncio.gather(*task_list)
-        for aweme_detail in aweme_details:
-            if aweme_detail:
-                await douyin_store.update_douyin_aweme(aweme_detail)
-
-        return aweme_ids
-    
     async def batch_get_aweme_list_from_ids(
         self, aweme_ids: List[str], checkpoint_id: str
     ) -> List[str]:
@@ -160,7 +114,7 @@ class AwemeProcessor:
                 note_id=aweme_id,
                 extra_params_info={},
             )
-            
+
             task = self.get_aweme_detail_async_task(
                 aweme_id=aweme_id,
                 checkpoint_id=checkpoint_id,
@@ -171,7 +125,5 @@ class AwemeProcessor:
         for aweme_detail in aweme_details:
             if aweme_detail:
                 processed_aweme_ids.append(aweme_detail.get("aweme_id"))
-                await douyin_store.update_douyin_aweme(aweme_detail)
 
         return processed_aweme_ids
-

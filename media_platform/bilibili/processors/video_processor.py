@@ -28,10 +28,10 @@ class VideoProcessor:
     """Handles video processing operations including detail extraction and batch processing"""
 
     def __init__(
-            self,
-            bili_client: "BilibiliClient",
-            checkpoint_manager: "CheckpointRepoManager",
-            crawler_video_task_semaphore: asyncio.Semaphore,
+        self,
+        bili_client: "BilibiliClient",
+        checkpoint_manager: "CheckpointRepoManager",
+        crawler_video_task_semaphore: asyncio.Semaphore,
     ):
         """
         Initialize video processor
@@ -46,10 +46,10 @@ class VideoProcessor:
         self.crawler_video_task_semaphore = crawler_video_task_semaphore
 
     async def get_video_detail_async_task(
-            self,
-            aid: int,
-            bvid: str,
-            checkpoint_id: str,
+        self,
+        aid: int,
+        bvid: str,
+        checkpoint_id: str,
     ) -> Optional[Dict]:
         """
         Get video detail from API
@@ -66,6 +66,7 @@ class VideoProcessor:
             try:
                 video_detail = await self.bili_client.get_video_info(aid=aid, bvid=bvid)
                 if video_detail:
+                    await bilibili_store.update_bilibili_video(video_detail)
                     return video_detail
 
             except DataFetchError as ex:
@@ -102,11 +103,11 @@ class VideoProcessor:
                     is_success_crawled=is_success_crawled,
                     is_success_crawled_comments=False,
                     current_note_comment_cursor=None,
-                    extra_params_info=extram_params_info
+                    extra_params_info=extram_params_info,
                 )
 
     async def batch_get_video_list(
-            self, video_list: List[Dict], checkpoint_id: str = ""
+        self, video_list: List[Dict], checkpoint_id: str = ""
     ) -> List[VideoIdInfo]:
         """
         Concurrently obtain the specified video list and save the data
@@ -123,12 +124,14 @@ class VideoProcessor:
             aid = video_item.get("aid", 0) or video_item.get("id", 0)
             bvid = video_item.get("bvid", "")
             if not bvid or not aid:
-                utils.logger.warning("[VideoProcessor.batch_get_videos] bvid or aid is empty, skip")
+                utils.logger.warning(
+                    "[VideoProcessor.batch_get_videos] bvid or aid is empty, skip"
+                )
                 continue
 
             video_id_infos.append(VideoIdInfo(aid=aid, bvid=bvid))
             if await self.checkpoint_manager.check_note_is_crawled_in_checkpoint(
-                    checkpoint_id=checkpoint_id, note_id=bvid
+                checkpoint_id=checkpoint_id, note_id=bvid
             ):
                 utils.logger.info(
                     f"[VideoProcessor.batch_get_videos] Video {bvid} is already crawled, skip"
@@ -150,15 +153,11 @@ class VideoProcessor:
             )
             task_list.append(task)
 
-        video_details = await asyncio.gather(*task_list)
-        for video_detail in video_details:
-            if video_detail:
-                await bilibili_store.update_bilibili_video(video_detail)
-
+        await asyncio.gather(*task_list)
         return video_id_infos
 
     async def batch_get_video_list_from_bvids(
-            self, bvids_list: List[str], checkpoint_id: str
+        self, bvids_list: List[str], checkpoint_id: str
     ) -> List[VideoIdInfo]:
         """
         Concurrently obtain the specified video list by bvids and save the data
@@ -176,13 +175,15 @@ class VideoProcessor:
                 continue
 
             if await self.checkpoint_manager.check_note_is_crawled_in_checkpoint(
-                    checkpoint_id=checkpoint_id, note_id=bvid
+                checkpoint_id=checkpoint_id, note_id=bvid
             ):
                 utils.logger.info(
                     f"[VideoProcessor.batch_get_video_list_from_bvids] Video {bvid} is already crawled, skip"
                 )
-                checkpoint_video_info: Optional[CheckpointNote] = await self.checkpoint_manager.get_note_info_from_checkpont(
-                    checkpoint_id=checkpoint_id, note_id=bvid
+                checkpoint_video_info: Optional[CheckpointNote] = (
+                    await self.checkpoint_manager.get_note_info_from_checkpont(
+                        checkpoint_id=checkpoint_id, note_id=bvid
+                    )
                 )
                 if checkpoint_video_info and checkpoint_video_info.extra_params_info:
                     video_id_infos.append(
@@ -211,5 +212,4 @@ class VideoProcessor:
                 video_vid = video_detail.get("View", {}).get("bvid")
                 if video_aid and video_vid:
                     video_id_infos.append(VideoIdInfo(aid=video_aid, bvid=video_vid))
-                await bilibili_store.update_bilibili_video(video_detail)
         return video_id_infos

@@ -9,11 +9,12 @@
 # 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。  
 
 import asyncio
-from typing import Dict, TYPE_CHECKING, Optional, Callable
+from typing import Dict, List, TYPE_CHECKING, Optional, Callable
 
 import config
 import constant
 from model.m_checkpoint import Checkpoint
+from model.m_douyin import DouyinAweme
 from pkg.tools import utils
 from repo.platform_save_data import douyin as douyin_store
 from .base_handler import BaseHandler
@@ -110,9 +111,9 @@ class CreatorHandler(BaseHandler):
             checkpoint.current_creator_id = user_id
             await self.checkpoint_manager.save_checkpoint(checkpoint)
 
-            creator_info: Dict = await self.dy_client.get_user_info(user_id)
-            if creator_info:
-                await douyin_store.save_creator(user_id, creator=creator_info)
+            creator = await self.dy_client.get_user_info(user_id)
+            if creator:
+                await douyin_store.save_creator(user_id, creator=creator)
 
             await self.get_all_user_aweme_posts(
                 sec_user_id=user_id,
@@ -185,7 +186,11 @@ class CreatorHandler(BaseHandler):
                     extra_params_info={},
                     is_success_crawled=True,
                 )
-                await douyin_store.update_douyin_aweme(aweme_item=aweme_info)
+                from media_platform.douyin.extractor import DouyinExtractor
+                extractor = DouyinExtractor()
+                aweme = extractor.extract_aweme_from_dict(aweme_info)
+                if aweme:
+                    await douyin_store.update_douyin_aweme(aweme_item=aweme)
 
             await self.comment_processor.batch_get_aweme_comments(
                 aweme_ids, checkpoint_id=checkpoint_id

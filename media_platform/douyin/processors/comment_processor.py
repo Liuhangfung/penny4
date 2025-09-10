@@ -9,12 +9,12 @@
 # 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。  
 
 import asyncio
-import random
 from asyncio import Task
-from typing import Callable, Dict, List, Optional, TYPE_CHECKING
+from typing import List, TYPE_CHECKING
 
 import config
 from config.base_config import PER_NOTE_MAX_COMMENTS_COUNT
+from model.m_douyin import DouyinAwemeComment
 from pkg.tools import utils
 from repo.platform_save_data import douyin as douyin_store
 from ..exception import DataFetchError
@@ -44,6 +44,7 @@ class CommentProcessor:
         self.dy_client = dy_client
         self.checkpoint_manager = checkpoint_manager
         self.crawler_comment_semaphore = crawler_comment_semaphore
+    
     
     async def batch_get_aweme_comments(
         self,
@@ -116,7 +117,6 @@ class CommentProcessor:
                 # 获取视频的所有评论
                 await self.get_aweme_all_comments(
                     aweme_id=aweme_id,
-                    callback=douyin_store.batch_update_dy_aweme_comments,
                     checkpoint_id=checkpoint_id
                 )
                 utils.logger.info(
@@ -130,14 +130,12 @@ class CommentProcessor:
     async def get_aweme_all_comments(
         self,
         aweme_id: str,
-        callback: Optional[Callable] = None,
         checkpoint_id: str = ""
     ):
         """
         获取视频的所有评论
         Args:
             aweme_id: 视频ID
-            callback: 回调函数
             checkpoint_id: 检查点ID
 
         Returns:
@@ -166,7 +164,7 @@ class CommentProcessor:
                     comments_cursor = 0
 
         while comments_has_more:
-            comments_res = await self.dy_client.get_aweme_comments(aweme_id, comments_cursor)
+            comments, comments_res = await self.dy_client.get_aweme_comments(aweme_id, comments_cursor)
             comments_has_more = comments_res.get("has_more", 0)
             comments_cursor = comments_res.get("cursor", 0)
 
@@ -178,12 +176,11 @@ class CommentProcessor:
                     comment_cursor=str(comments_cursor),
                 )
 
-            comments = comments_res.get("comments", [])
             if not comments:
                 continue
             result.extend(comments)
-            if callback:  # 如果有回调函数，就执行回调函数
-                await callback(aweme_id, comments)
+            # 保存评论到数据库
+            await douyin_store.batch_update_dy_aweme_comments(aweme_id, comments)
             if (
                 PER_NOTE_MAX_COMMENTS_COUNT
                 and len(result) >= PER_NOTE_MAX_COMMENTS_COUNT
@@ -195,7 +192,7 @@ class CommentProcessor:
             # 爬虫请求间隔时间
             await asyncio.sleep(config.CRAWLER_TIME_SLEEP)
             sub_comments = await self.get_comments_all_sub_comments(
-                aweme_id, comments, callback
+                aweme_id, comments
             )
             result.extend(sub_comments)
 
@@ -213,15 +210,13 @@ class CommentProcessor:
     async def get_comments_all_sub_comments(
         self,
         aweme_id: str,
-        comments: List[Dict],
-        callback: Optional[Callable] = None,
-    ) -> List[Dict]:
+        comments: List[DouyinAwemeComment]
+    ) -> List[DouyinAwemeComment]:
         """
         获取指定一级评论下的所有二级评论, 该方法会一直查找一级评论下的所有二级评论信息
         Args:
             aweme_id: 视频ID
             comments: 评论列表
-            callback: 一次评论爬取结束后
 
         Returns:
             List of sub-comments
@@ -233,23 +228,22 @@ class CommentProcessor:
             return []
         result = []
         for comment in comments:
-            reply_comment_total = comment.get("reply_comment_total")
+            reply_comment_total = int(comment.sub_comment_count) if comment.sub_comment_count else 0
             if reply_comment_total > 0:
-                comment_id = comment.get("cid")
+                comment_id = comment.comment_id
                 sub_comments_has_more = 1
                 sub_comments_cursor = 0
                 while sub_comments_has_more:
-                    sub_comments_res = await self.dy_client.get_sub_comments(
-                        comment_id, sub_comments_cursor
+                    sub_comments, sub_comments_res = await self.dy_client.get_sub_comments(
+                        comment_id, sub_comments_cursor, aweme_id
                     )
                     sub_comments_has_more = sub_comments_res.get("has_more", 0)
                     sub_comments_cursor = sub_comments_res.get("cursor", 0)
-                    sub_comments = sub_comments_res.get("comments", [])
                     if not sub_comments:
                         continue
                     result.extend(sub_comments)
-                    if callback:  # 如果有回调函数，就执行回调函数
-                        await callback(aweme_id, sub_comments)
+                    # 保存子评论到数据库
+                    await douyin_store.batch_update_dy_aweme_comments(aweme_id, sub_comments)
 
                     # 爬虫请求间隔时间
                     await asyncio.sleep(config.CRAWLER_TIME_SLEEP)

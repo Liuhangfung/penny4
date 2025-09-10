@@ -15,7 +15,9 @@ import json
 import re
 import traceback
 import urllib.parse
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from model.m_douyin import DouyinAweme, DouyinAwemeComment, DouyinCreator
+from .extractor import DouyinExtractor
 
 import httpx
 from httpx import Response
@@ -58,6 +60,7 @@ class DouYinApiClient(AbstractApiClient):
         self.common_verfiy_params = common_verfiy_params
         self.account_with_ip_pool = account_with_ip_pool
         self.account_info: Optional[AccountWithIpModel] = None
+        self._extractor = DouyinExtractor()
 
     @property
     def _headers(self):
@@ -468,7 +471,7 @@ class DouYinApiClient(AbstractApiClient):
             query_params["search_source"] = "tab_search"
         return await self.get("/aweme/v1/web/general/search/single/", query_params)
 
-    async def get_video_by_id(self, aweme_id: str) -> Any:
+    async def get_video_by_id(self, aweme_id: str) -> Optional[DouyinAweme]:
         """
         DouYin Video Detail API
         Args:
@@ -487,9 +490,12 @@ class DouYinApiClient(AbstractApiClient):
         if "Origin" in headers:
             del headers["Origin"]
         res = await self.get("/aweme/v1/web/aweme/detail/", params, headers=headers)
-        return res.get("aweme_detail", {})
+        aweme_detail = res.get("aweme_detail", {})
+        if aweme_detail:
+            return self._extractor.extract_aweme_from_dict(aweme_detail)
+        return None
 
-    async def get_aweme_comments(self, aweme_id: str, cursor: int = 0):
+    async def get_aweme_comments(self, aweme_id: str, cursor: int = 0) -> Tuple[List[DouyinAwemeComment], Dict]:
         """
         获取帖子的评论
         Args:
@@ -497,7 +503,7 @@ class DouYinApiClient(AbstractApiClient):
             cursor: 分页游标
 
         Returns:
-
+            Tuple[List[DouyinAwemeComment], Dict]: 评论模型列表和响应元数据
         """
         uri = "/aweme/v1/web/comment/list/"
         params = {
@@ -517,17 +523,25 @@ class DouYinApiClient(AbstractApiClient):
         )
         headers = copy.copy(self._headers)
         headers["Referer"] = urllib.parse.quote(referer_url, safe=":/")
-        return await self.get(uri, params, headers=headers)
+        res = await self.get(uri, params, headers=headers)
+        
+        # Extract comments as models
+        comments_data = res.get("comments", [])
+        comments = self._extractor.extract_comments_from_dict(aweme_id, comments_data)
+        
+        # Return both models and metadata (cursor, has_more, etc)
+        return comments, res
 
-    async def get_sub_comments(self, comment_id: str, cursor: int = 0):
+    async def get_sub_comments(self, comment_id: str, cursor: int = 0, aweme_id: str = "") -> Tuple[List[DouyinAwemeComment], Dict]:
         """
         获取子评论
         Args:
             comment_id: 父评论ID
             cursor: 分页游标
+            aweme_id: 视频ID (用于构建评论模型)
 
         Returns:
-
+            Tuple[List[DouyinAwemeComment], Dict]: 子评论模型列表和响应元数据
         """
         uri = "/aweme/v1/web/comment/list/reply/"
         params = {
@@ -547,9 +561,16 @@ class DouYinApiClient(AbstractApiClient):
         )
         headers = copy.copy(self._headers)
         headers["Referer"] = urllib.parse.quote(referer_url, safe=":/")
-        return await self.get(uri, params, headers=headers)
+        res = await self.get(uri, params, headers=headers)
+        
+        # Extract sub-comments as models
+        comments_data = res.get("comments", [])
+        comments = self._extractor.extract_comments_from_dict(aweme_id, comments_data) if aweme_id else []
+        
+        # Return both models and metadata
+        return comments, res
 
-    async def get_user_info(self, sec_user_id: str):
+    async def get_user_info(self, sec_user_id: str) -> Optional[DouyinCreator]:
         """
         获取指定sec_user_id用户信息
         Args:
@@ -566,7 +587,11 @@ class DouYinApiClient(AbstractApiClient):
             "verifyFp": self.common_verfiy_params.verify_fp,
             "fp": self.common_verfiy_params.verify_fp,
         }
-        return await self.get(uri, params)
+        res = await self.get(uri, params)
+        user_info = res.get("user", {})
+        if user_info:
+            return self._extractor.extract_creator_from_dict(user_info)
+        return None
 
     async def get_user_aweme_posts(
         self, sec_user_id: str, max_cursor: str = "0"

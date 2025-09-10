@@ -9,8 +9,9 @@
 # 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。
 
 import asyncio
-from typing import Callable, Dict, List, Optional, TYPE_CHECKING
+from typing import List, Optional, TYPE_CHECKING
 
+from model.m_douyin import DouyinAweme
 from pkg.tools import utils
 from repo.platform_save_data import douyin as douyin_store
 from ..exception import DataFetchError
@@ -45,7 +46,7 @@ class AwemeProcessor:
         self,
         aweme_id: str,
         checkpoint_id: str = "",
-    ) -> Optional[Dict]:
+    ) -> Optional[DouyinAweme]:
         """
         Get aweme detail from API
 
@@ -53,15 +54,15 @@ class AwemeProcessor:
             aweme_id: aweme id
             checkpoint_id: checkpoint id
         Returns:
-            aweme detail
+            aweme model
         """
-        aweme_detail = None
+        aweme = None
         async with self.crawler_aweme_task_semaphore:
             try:
-                aweme_detail = await self.dy_client.get_video_by_id(aweme_id)
-                if aweme_detail:
-                    await douyin_store.update_douyin_aweme(aweme_detail)
-                    return aweme_detail
+                aweme = await self.dy_client.get_video_by_id(aweme_id)
+                if aweme:
+                    await douyin_store.update_douyin_aweme(aweme)
+                    return aweme
 
             except DataFetchError as ex:
                 utils.logger.error(
@@ -77,7 +78,7 @@ class AwemeProcessor:
 
             finally:
                 if checkpoint_id:
-                    is_success_crawled = aweme_detail is not None
+                    is_success_crawled = aweme is not None
                     await self.checkpoint_manager.update_note_to_checkpoint(
                         checkpoint_id=checkpoint_id,
                         note_id=aweme_id,
@@ -122,8 +123,8 @@ class AwemeProcessor:
             task_list.append(task)
 
         aweme_details = await asyncio.gather(*task_list)
-        for aweme_detail in aweme_details:
-            if aweme_detail:
-                processed_aweme_ids.append(aweme_detail.get("aweme_id"))
+        for aweme in aweme_details:
+            if aweme:
+                processed_aweme_ids.append(aweme.aweme_id)
 
         return processed_aweme_ids

@@ -142,7 +142,11 @@ class HomefeedHandler(BaseHandler):
                         is_success_crawled=True,
                     )
 
-                    await douyin_store.update_douyin_aweme(aweme_item=aweme_info)
+                    from media_platform.douyin.extractor import DouyinExtractor
+                    extractor = DouyinExtractor()
+                    aweme = extractor.extract_aweme_from_dict(aweme_info)
+                    if aweme:
+                        await douyin_store.update_douyin_aweme(aweme_item=aweme)
                     saved_aweme_count += 1
 
                 await self.comment_processor.batch_get_aweme_comments(

@@ -9,7 +9,7 @@
 # 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。
 
 import asyncio
-from typing import Dict, List, Optional, TYPE_CHECKING
+from typing import Dict, List, TYPE_CHECKING
 
 import config
 import constant
@@ -121,19 +121,17 @@ class CreatorHandler(BaseHandler):
             checkpoint.current_creator_id = creator_url_info.creator_id
             await self.checkpoint_manager.save_checkpoint(checkpoint)
 
-            createor_info: Optional[Dict] = await self.xhs_client.get_creator_info(
+            creator_info = await self.xhs_client.get_creator_info(
                 user_id=creator_url_info.creator_id,
                 xsec_token=creator_url_info.xsec_token,
                 xsec_source=creator_url_info.xsec_source,
             )
-            if not createor_info:
+            if not creator_info:
                 raise Exception(
                     f"[CreatorHandler.get_creators_and_notes] Get creator info error, user_id: {creator_url_info.creator_id}"
                 )
 
-            await xhs_store.save_creator(
-                creator_url_info.creator_id, creator=createor_info
-            )
+            await xhs_store.save_creator(creator_info)
 
             # Get all note information of the creator
             await self.get_all_notes_by_creator(

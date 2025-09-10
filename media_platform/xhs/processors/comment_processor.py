@@ -9,7 +9,6 @@
 # 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。
 
 import asyncio
-import random
 from asyncio import Task
 from typing import Callable, Dict, List, Optional, TYPE_CHECKING
 
@@ -116,7 +115,7 @@ class CommentProcessor:
             )
             await self.get_note_all_comments(
                 note_id=note_id,
-                callback=xhs_store.batch_update_xhs_note_comments,
+                callback=xhs_store.batch_update_xhs_note_comments_from_dict,
                 xsec_token=xsec_token,
                 checkpoint_id=checkpoint_id,
             )

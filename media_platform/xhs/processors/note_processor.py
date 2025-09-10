@@ -10,6 +10,7 @@
 
 import asyncio
 from typing import Dict, List, Optional, TYPE_CHECKING, Tuple
+from model.m_xhs import XhsNote
 from tenacity import RetryError
 
 import config
@@ -49,7 +50,7 @@ class NoteProcessor:
         xsec_source: str,
         xsec_token: str,
         checkpoint_id: str,
-    ) -> Optional[Dict]:
+    ) -> Optional[XhsNote]:
         """
         Get note detail from html or api
 
@@ -61,25 +62,22 @@ class NoteProcessor:
         Returns:
             note detail
         """
-        note_detail, note_detail_from_html, note_detail_from_api = None, None, None
+        note_detail: Optional[XhsNote] = None
         async with self.crawler_note_task_semaphore:
             try:
-                note_detail_from_html: Optional[Dict] = (
+                note_detail_from_html: Optional[XhsNote] = (
                     await self.xhs_client.get_note_by_id_from_html(
                         note_id, xsec_source, xsec_token
                     )
                 )
                 if not note_detail_from_html:
-                    note_detail_from_api: Optional[Dict] = (
+                    note_detail_from_api: Optional[XhsNote] = (
                         await self.xhs_client.get_note_by_id(
                             note_id, xsec_source, xsec_token
                         )
                     )
                 note_detail = note_detail_from_html or note_detail_from_api
                 if note_detail:
-                    note_detail.update(
-                        {"xsec_token": xsec_token, "xsec_source": xsec_source}
-                    )
                     await xhs_store.update_xhs_note(note_detail)
                     return note_detail
 

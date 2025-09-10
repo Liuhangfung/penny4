@@ -15,6 +15,7 @@ import random
 import re
 import traceback
 from typing import Callable, Dict, List, Optional, Union
+from model.m_xhs import XhsNote, XhsComment, XhsCreator
 from urllib.parse import urlencode
 
 import httpx
@@ -393,7 +394,7 @@ class XiaoHongShuClient(AbstractApiClient):
 
     async def get_note_by_id(
         self, note_id: str, xsec_source: str = "", xsec_token: str = ""
-    ) -> Dict:
+    ) -> Optional[XhsNote]:
         """
         获取笔记详情API
         Args:
@@ -418,12 +419,15 @@ class XiaoHongShuClient(AbstractApiClient):
         res = await self.post(uri, data)
         if res and res.get("items"):
             res_dict: Dict = res["items"][0]["note_card"]
-            return res_dict
+            # 添加xsec_token到笔记数据中
+            res_dict["xsec_token"] = xsec_token
+            res_dict["xsec_source"] = xsec_source
+            return self._extractor.extract_note_from_dict(res_dict)
         # 爬取频繁了可能会出现有的笔记能有结果有的没有
         utils.logger.error(
             f"[XiaoHongShuClient.get_note_by_id] get note id:{note_id} empty and res:{res}"
         )
-        return dict()
+        return None
 
     async def get_note_comments(
         self, note_id: str, cursor: str = "", xsec_token: str = ""
@@ -593,7 +597,7 @@ class XiaoHongShuClient(AbstractApiClient):
 
     async def get_creator_info(
         self, user_id: str, xsec_token: str, xsec_source: str
-    ) -> Optional[Dict]:
+    ) -> Optional[XhsCreator]:
         """
         通过解析网页版的用户主页HTML，获取用户个人简要信息
         PC端用户主页的网页存在window.__INITIAL_STATE__这个变量上的，解析它即可
@@ -616,7 +620,7 @@ class XiaoHongShuClient(AbstractApiClient):
             follow_redirects=True,
             headers=self.headers,
         )
-        creator_info = self._extractor.extract_creator_info_from_html(response.text)
+        creator_info = self._extractor.extract_creator_info_from_html(user_id, response.text)
         return creator_info
 
     async def get_notes_by_creator(
@@ -644,7 +648,7 @@ class XiaoHongShuClient(AbstractApiClient):
 
     async def get_note_by_id_from_html(
         self, note_id: str, xsec_source: str, xsec_token: str
-    ) -> Optional[Dict]:
+    ) -> Optional[XhsNote]:
         """
         通过解析网页版的笔记详情页HTML，获取笔记详情
 
@@ -669,14 +673,16 @@ class XiaoHongShuClient(AbstractApiClient):
             async with httpx.AsyncClient(proxies=ip_proxies) as client:
                 try:
                     reponse = await client.get(req_url, headers=copy_headers)
-                    note_dict = self._extractor.extract_note_detail_from_html(
+                    note = self._extractor.extract_note_detail_from_html(
                         note_id, reponse.text
                     )
-                    if note_dict:
+                    if note:
+                        # 添加xsec_token到笔记模型中
+                        note.note_url = f"https://www.xiaohongshu.com/explore/{note_id}?xsec_token={xsec_token}&xsec_source={xsec_source}"
                         utils.logger.info(
                             f"[XiaoHongShuClient.get_note_by_id_from_html] get note_id:{note_id} detail from html success"
                         )
-                        return note_dict
+                        return note
 
                     utils.logger.info(
                         f"[XiaoHongShuClient.get_note_by_id_from_html] current retried times: {current_retry}"

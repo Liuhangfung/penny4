@@ -16,7 +16,7 @@
 import asyncio
 import json
 import traceback
-from typing import Callable, Dict, List, Optional, Union
+from typing import Callable, Dict, List, Optional, Tuple, Union
 from urllib.parse import urlencode
 
 import httpx
@@ -27,8 +27,13 @@ import config
 from base.base_crawler import AbstractApiClient
 from config import PER_NOTE_MAX_COMMENTS_COUNT
 from constant.bilibili import BILI_API_URL, BILI_INDEX_URL, BILI_SPACE_URL
-from media_platform.bilibili.help import BiliExtractor
-from model.m_bilibili import CreatorQueryResponse
+from model.m_bilibili import (
+    CreatorQueryResponse,
+    BilibiliVideo,
+    BilibiliComment,
+    BilibiliUpInfo,
+)
+from media_platform.bilibili.extractor import BilibiliExtractor
 from pkg.account_pool import AccountWithIpModel
 from pkg.account_pool.pool import AccountWithIpPoolManager
 from pkg.cache.cache_factory import CacheFactory
@@ -50,6 +55,7 @@ class BilibiliClient(AbstractApiClient):
     ):
         """
         bilibili client constructor
+
         Args:
             timeout: 请求超时时间配置
             user_agent: 自定义的User-Agent
@@ -60,7 +66,7 @@ class BilibiliClient(AbstractApiClient):
         self._sign_client = SignServerClient()
         self.account_with_ip_pool = account_with_ip_pool
         self.account_info: Optional[AccountWithIpModel] = None
-        self._extractor = BiliExtractor()
+        self._extractor = BilibiliExtractor()
         self._w_webid = ""
 
     @property
@@ -122,10 +128,15 @@ class BilibiliClient(AbstractApiClient):
 
     async def pre_request_data(self, req_data: Dict) -> Dict:
         """
-        发送请求进行请求参数签名
-        :param req_data:
-        :return:
+        预处理请求参数，获取签名参数
+
+        Args:
+            req_data: 请求参数
+
+        Returns:
+            预处理后的请求参数
         """
+
         if not req_data:
             return {}
         sign_req = BilibliSignRequest(req_data=req_data, cookies=self._cookies)
@@ -137,6 +148,7 @@ class BilibiliClient(AbstractApiClient):
         """
         检查IP是否过期, 由于IP的过期时间在运行中是不确定的，所以每次请求都需要验证下IP是否过期
         如果过期了，那么需要重新获取一个新的IP，赋值给当前账号信息
+
         Returns:
 
         """
@@ -338,6 +350,7 @@ class BilibiliClient(AbstractApiClient):
     ):
         """
         search video by keyword
+
         Args:
             keyword: 搜索关键词
             page: 分页参数具体第几页
@@ -358,10 +371,11 @@ class BilibiliClient(AbstractApiClient):
         return await self.get(uri, post_data)
 
     async def get_video_info(
-        self, aid: Optional[int] = None, bvid: Optional[str] = None
-    ) -> Dict:
+        self, aid: Optional[str] = None, bvid: Optional[str] = None
+    ) -> Optional[BilibiliVideo]:
         """
         Bilibli web video detail api, aid 和 bvid任选一个参数
+
         Args:
             aid: 稿件avid
             bvid: 稿件bvid
@@ -378,16 +392,23 @@ class BilibiliClient(AbstractApiClient):
             params.update({"aid": aid})
         else:
             params.update({"bvid": bvid})
-        return await self.get(uri, params, enable_params_sign=True)
+        res = await self.get(uri, params, enable_params_sign=True)
+
+        # 提取视频信息
+        video_data = res.get("View", {})
+        if video_data:
+            return self._extractor.extract_video_from_dict(video_data)
+        return None
 
     async def get_video_comments(
         self,
         video_id: str,
         order_mode: CommentOrderType = CommentOrderType.DEFAULT,
         next_page: int = 0,
-    ) -> Dict:
+    ) -> Tuple[List[BilibiliComment], Dict]:
         """
         获取视频评论
+
         Args:
             video_id: 视频 ID (aid)
             order_mode: 排序方式
@@ -404,7 +425,14 @@ class BilibiliClient(AbstractApiClient):
             "ps": 20,
             "next": next_page,
         }
-        return await self.get(uri, post_data)
+        res = await self.get(uri, post_data)
+
+        # 提取评论列表
+        comments_data = res.get("replies", [])
+        comments = self._extractor.extract_comments_from_dict(video_id, comments_data)
+
+        # 返回评论和原始响应（包含分页信息等）
+        return comments, res
 
     async def get_video_sub_comments(
         self,
@@ -413,18 +441,19 @@ class BilibiliClient(AbstractApiClient):
         pn: int,
         ps: int,
         order_mode: CommentOrderType,
-    ):
+    ) -> Tuple[List[BilibiliComment], Dict]:
         """
-        获取
+        获取子评论
+
         Args:
             video_id: 子评论的视频ID (aid)
             root_comment_id: 根评论ID
-            pn:
-            ps:
+            pn: 页码
+            ps: 每页大小
             order_mode: 排序方式
 
         Returns:
-
+            Tuple[List[BilibiliComment], Dict]: 子评论列表和响应数据
         """
         uri = "/x/v2/reply/reply"
         params = {
@@ -435,7 +464,16 @@ class BilibiliClient(AbstractApiClient):
             "pn": pn,
             "root": root_comment_id,
         }
-        return await self.get(uri, params)
+        res = await self.get(uri, params)
+
+        # 提取子评论列表
+        sub_comments_data = res.get("replies", [])
+        sub_comments = self._extractor.extract_comments_from_dict(
+            video_id, sub_comments_data
+        )
+
+        # 返回子评论和原始响应（包含分页信息等）
+        return sub_comments, res
 
     async def get_up_info(self, up_id: str) -> Dict:
         """
@@ -486,7 +524,7 @@ class BilibiliClient(AbstractApiClient):
         params = {"mid": up_id, "platform": "web", "web_location": 333.999}
         return await self.get("/x/space/navnum", params)
 
-    async def get_creator_info(self, creator_id: str) -> Optional[CreatorQueryResponse]:
+    async def get_creator_info(self, creator_id: str) -> Optional[BilibiliUpInfo]:
         """
         Get creator info
 
@@ -494,16 +532,23 @@ class BilibiliClient(AbstractApiClient):
             creator_id (str): 创作者ID
 
         Returns:
-            CreatorQueryResponse: 创作者信息
+            BilibiliUpInfo: 创作者信息
         """
         up_info, relation_state, space_navnum = await asyncio.gather(
             self.get_up_info(creator_id),
             self.get_relation_state(creator_id),
             self.get_space_navnum(creator_id),
         )
-        return self._extractor.extract_creator_info(
-            up_info, relation_state, space_navnum
-        )
+
+        # 合并数据
+        user_data = {
+            **up_info,
+            "follower": relation_state.get("follower"),
+            "following": relation_state.get("following"),
+            "archive_count": space_navnum.get("video"),
+        }
+
+        return self._extractor.extract_up_info_from_dict(user_data)
 
     async def get_creator_videos(
         self,

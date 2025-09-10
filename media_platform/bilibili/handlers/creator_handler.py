@@ -118,10 +118,11 @@ class CreatorHandler(BaseHandler):
 
             # 获取创作者信息
             creator_info = await self.bili_client.get_creator_info(creator_id)
-            utils.logger.info(
-                f"[CreatorHandler.get_creators_and_videos] creator_info: {creator_info}"
-            )
-            await bilibili_store.update_bilibili_creator(creator_info)
+            if creator_info:
+                utils.logger.info(
+                    f"[CreatorHandler.get_creators_and_videos] creator_info: user_id={creator_info.user_id}, nickname={creator_info.nickname}"
+                )
+                await bilibili_store.update_bilibili_up_info(creator_info)
 
             utils.logger.info(
                 f"[CreatorHandler.get_creators_and_videos] begin get creator_id: {creator_id} videos ..."

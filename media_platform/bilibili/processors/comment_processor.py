@@ -15,7 +15,7 @@ from typing import List, TYPE_CHECKING, Dict, Optional, Callable
 
 import config
 from config import PER_NOTE_MAX_COMMENTS_COUNT
-from model.m_bilibili import VideoIdInfo
+from model.m_bilibili import VideoIdInfo, BilibiliComment
 from pkg.tools import utils
 from repo.platform_save_data import bilibili as bilibili_store
 from ..exception import DataFetchError
@@ -81,11 +81,11 @@ class CommentProcessor:
 
             task = asyncio.create_task(
                 self.get_comments_async_task(
-                    aid=str(video_info.aid),
+                    aid=video_info.aid,
                     bvid=video_info.bvid,
                     checkpoint_id=checkpoint_id,
                 ),
-                name=str(video_info.aid),
+                name=video_info.aid,
             )
             task_list.append(task)
         await asyncio.gather(*task_list)
@@ -158,11 +158,10 @@ class CommentProcessor:
         result = []
         is_end = False
         while not is_end:
-            comments_res = await self.bili_client.get_video_comments(
+            comment_list, response_data = await self.bili_client.get_video_comments(
                 aid, CommentOrderType.DEFAULT, next_page
             )
-            cursor_info: Dict = comments_res.get("cursor")
-            comment_list: List[Dict] = comments_res.get("replies", [])
+            cursor_info: Dict = response_data.get("cursor", {})
             is_end = cursor_info.get("is_end")
             next_page = cursor_info.get("next")
 
@@ -207,9 +206,9 @@ class CommentProcessor:
     async def get_comments_all_sub_comments(
             self,
             video_id: str,
-            comments: List[Dict],
+            comments: List[BilibiliComment],
             callback: Optional[Callable] = None,
-    ) -> List[Dict]:
+    ) -> List[BilibiliComment]:
         """
         获取指定一级评论下的所有二级评论, 该方法会一直查找一级评论下的所有二级评论信息
         Args:
@@ -228,21 +227,20 @@ class CommentProcessor:
 
         result = []
         for comment in comments:
-            if comment.get("rcount", 0) == 0:
+            if int(comment.sub_comment_count or "0") == 0:
                 continue
             sub_comment_has_more = True
-            rpid = comment.get("rpid")
+            rpid = comment.comment_id
             page_num = 1
             page_size = 10
             while sub_comment_has_more:
-                sub_comments_res = await self.bili_client.get_video_sub_comments(
+                sub_comments, response_data = await self.bili_client.get_video_sub_comments(
                     video_id=video_id,
                     root_comment_id=rpid,
                     pn=page_num,
                     ps=page_size,
                     order_mode=CommentOrderType.DEFAULT,
                 )
-                sub_comments = sub_comments_res.get("replies", [])
                 if callback:
                     await callback(video_id, sub_comments)
 
@@ -250,7 +248,7 @@ class CommentProcessor:
                 await asyncio.sleep(config.CRAWLER_TIME_SLEEP)
                 result.extend(sub_comments)
                 sub_comment_has_more = (
-                        sub_comments_res.get("page").get("count") > page_num * page_size
+                        response_data.get("page", {}).get("count", 0) > page_num * page_size
                 )
                 page_num += 1
 

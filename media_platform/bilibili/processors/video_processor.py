@@ -13,7 +13,7 @@ import sys
 from typing import Dict, List, Optional, TYPE_CHECKING
 from tenacity import RetryError
 
-from model.m_bilibili import VideoIdInfo
+from model.m_bilibili import VideoIdInfo, BilibiliVideo
 from model.m_checkpoint import CheckpointNote
 from pkg.tools import utils
 from repo.platform_save_data import bilibili as bilibili_store
@@ -47,10 +47,10 @@ class VideoProcessor:
 
     async def get_video_detail_async_task(
         self,
-        aid: int,
+        aid: str,
         bvid: str,
         checkpoint_id: str,
-    ) -> Optional[Dict]:
+    ) -> Optional[BilibiliVideo]:
         """
         Get video detail from API
 
@@ -91,8 +91,8 @@ class VideoProcessor:
                 extram_params_info: Optional[Dict] = None
                 is_success_crawled = video_detail is not None
                 if video_detail:
-                    video_aid = video_detail.get("View", {}).get("aid")
-                    video_vid = video_detail.get("View", {}).get("bvid")
+                    video_aid = video_detail.video_id
+                    video_vid = video_detail.bvid
                     extram_params_info = {
                         "aid": video_aid,
                         "bvid": video_vid,
@@ -121,7 +121,7 @@ class VideoProcessor:
         task_list = []
         video_id_infos: List[VideoIdInfo] = []
         for video_item in video_list:
-            aid = video_item.get("aid", 0) or video_item.get("id", 0)
+            aid = str(video_item.get("aid", "") or video_item.get("id", ""))
             bvid = video_item.get("bvid", "")
             if not bvid or not aid:
                 utils.logger.warning(
@@ -199,7 +199,7 @@ class VideoProcessor:
                 note_id=bvid,
             )
             task = self.get_video_detail_async_task(
-                aid=0,
+                aid="",
                 bvid=bvid,
                 checkpoint_id=checkpoint_id,
             )
@@ -208,8 +208,8 @@ class VideoProcessor:
         video_details = await asyncio.gather(*task_list)
         for video_detail in video_details:
             if video_detail:
-                video_aid = video_detail.get("View", {}).get("aid")
-                video_vid = video_detail.get("View", {}).get("bvid")
+                video_aid = video_detail.video_id
+                video_vid = video_detail.bvid
                 if video_aid and video_vid:
                     video_id_infos.append(VideoIdInfo(aid=video_aid, bvid=video_vid))
         return video_id_infos

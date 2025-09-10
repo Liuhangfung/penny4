@@ -17,7 +17,7 @@
 from typing import List
 
 import config
-from model.m_bilibili import CreatorQueryResponse
+from model.m_bilibili import BilibiliVideo, BilibiliComment, BilibiliUpInfo, CreatorQueryResponse
 from var import source_keyword_var
 
 from .bilibili_store_impl import *
@@ -50,85 +50,56 @@ async def update_bilibili_creator(creator_info: CreatorQueryResponse):
     await BiliStoreFactory.create_store().store_creator(save_data)
 
 
-async def update_bilibili_video(video_item: Dict):
-    video_item_view: Dict = video_item.get("View")
-    video_user_info: Dict = video_item_view.get("owner")
-    video_item_stat: Dict = video_item_view.get("stat")
-    aid = str(video_item_view.get("aid"))
-    bvid = str(video_item_view.get("bvid"))
-    duration = video_item_view.get("duration", "")
-
-    save_content_item = {
-        "video_id": aid,
-        "video_type": "video",
-        "title": video_item_view.get("title", "")[:500],
-        "desc": video_item_view.get("desc", "")[:500],
-        "create_time": video_item_view.get("pubdate"),
-        "user_id": str(video_user_info.get("mid")),
-        "nickname": video_user_info.get("name"),
-        "avatar": video_user_info.get("face", ""),
-        "liked_count": str(video_item_stat.get("like", "")),
-        "video_play_count": str(video_item_stat.get("view", "")),
-        "video_danmaku": str(video_item_stat.get("danmaku", "")),
-        "video_comment": str(video_item_stat.get("reply", "")),
-        "last_modify_ts": utils.get_current_timestamp(),
-        "video_url": f"https://www.bilibili.com/video/av{aid}",
-        "video_cover_url": video_item_view.get("pic", ""),
-        "source_keyword": source_keyword_var.get(),
-        "bvid": bvid,
-        "duration": duration,
-    }
+async def update_bilibili_up_info(up_info: BilibiliUpInfo):
     utils.logger.info(
-        f"[store.bilibili.update_bilibili_video] bilibili bvid: {bvid}, title:{save_content_item.get('title')}"
+        f"[store.bilibili.update_bilibili_up_info] bilibili up info: user_id={up_info.user_id}, nickname={up_info.nickname}"
     )
+    
+    save_data = up_info.model_dump()
+    save_data["last_modify_ts"] = utils.get_current_timestamp()
+    # Convert string fields to int for database bigint columns
+    save_data["follower_count"] = int(save_data.get("follower_count", "0") or "0")
+    save_data["following_count"] = int(save_data.get("following_count", "0") or "0")
+    save_data["content_count"] = int(save_data.get("content_count", "0") or "0")
+    await BiliStoreFactory.create_store().store_creator(save_data)
+
+
+async def update_bilibili_video(video_item: BilibiliVideo):
+    utils.logger.info(
+        f"[store.bilibili.update_bilibili_video] bilibili bvid: {video_item.bvid}, title:{video_item.title[:100]}"
+    )
+    
+    save_content_item = video_item.model_dump()
+    save_content_item["last_modify_ts"] = utils.get_current_timestamp()
     await BiliStoreFactory.create_store().store_content(content_item=save_content_item)
 
 
-async def update_up_info(video_item: Dict):
-    video_item_card_list: Dict = video_item.get("Card")
-    video_item_card: Dict = video_item_card_list.get("card")
-    saver_up_info = {
-        "user_id": str(video_item_card.get("mid")),
-        "nickname": video_item_card.get("name"),
-        "avatar": video_item_card.get("face"),
-        "last_modify_ts": utils.get_current_timestamp(),
-        "total_fans": video_item_card.get("fans"),
-        "total_liked": video_item_card_list.get("like_num"),
-        "user_rank": video_item_card.get("level_info").get("current_level"),
-        "is_official": video_item_card.get("official_verify").get("type"),
-    }
+async def update_up_info(up_info: BilibiliUpInfo):
     utils.logger.info(
-        f"[store.bilibili.update_up_info] bilibili user_id:{video_item_card.get('mid')}"
+        f"[store.bilibili.update_up_info] bilibili user_id:{up_info.user_id}"
     )
-    await BiliStoreFactory.create_store().store_creator(creator=saver_up_info)
+    
+    save_up_info = up_info.model_dump()
+    save_up_info["last_modify_ts"] = utils.get_current_timestamp()
+    # Convert field types to match database
+    save_up_info["follower_count"] = int(save_up_info.get("follower_count", "0") or "0")
+    save_up_info["following_count"] = int(save_up_info.get("following_count", "0") or "0")
+    save_up_info["content_count"] = int(save_up_info.get("content_count", "0") or "0")
+    await BiliStoreFactory.create_store().store_creator(creator=save_up_info)
 
 
-async def batch_update_bilibili_video_comments(video_id: str, comments: List[Dict]):
+async def batch_update_bilibili_video_comments(video_id: str, comments: List[BilibiliComment]):
     if not comments:
         return
     for comment_item in comments:
-        await update_bilibili_video_comment(video_id, comment_item)
+        await update_bilibili_video_comment(comment_item)
 
 
-async def update_bilibili_video_comment(video_id: str, comment_item: Dict):
-    comment_id = str(comment_item.get("rpid"))
-    parent_comment_id = str(comment_item.get("parent", 0))
-    content: Dict = comment_item.get("content")
-    user_info: Dict = comment_item.get("member")
-    save_comment_item = {
-        "comment_id": comment_id,
-        "parent_comment_id": parent_comment_id,
-        "create_time": comment_item.get("ctime"),
-        "video_id": str(video_id),
-        "content": content.get("message"),
-        "user_id": user_info.get("mid"),
-        "nickname": user_info.get("uname"),
-        "avatar": user_info.get("avatar"),
-        "sub_comment_count": str(comment_item.get("rcount", 0)),
-        "last_modify_ts": utils.get_current_timestamp(),
-        "like_count": comment_item.get("like") if comment_item.get("like") else 0,
-    }
+async def update_bilibili_video_comment(comment_item: BilibiliComment):
     utils.logger.info(
-        f"[store.bilibili.update_bilibili_video_comment] Bilibili video comment: {comment_id}, content: {save_comment_item.get('content')}"
+        f"[store.bilibili.update_bilibili_video_comment] Bilibili video comment: {comment_item.comment_id}, content: {comment_item.content[:100]}"
     )
+    
+    save_comment_item = comment_item.model_dump()
+    save_comment_item["last_modify_ts"] = utils.get_current_timestamp()
     await BiliStoreFactory.create_store().store_comment(comment_item=save_comment_item)

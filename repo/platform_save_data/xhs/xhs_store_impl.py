@@ -1,12 +1,12 @@
-# 声明：本代码仅供学习和研究目的使用。使用者应遵守以下原则：  
-# 1. 不得用于任何商业用途。  
-# 2. 使用时应遵守目标平台的使用条款和robots.txt规则。  
-# 3. 不得进行大规模爬取或对平台造成运营干扰。  
-# 4. 应合理控制请求频率，避免给目标平台带来不必要的负担。   
+# 声明：本代码仅供学习和研究目的使用。使用者应遵守以下原则：
+# 1. 不得用于任何商业用途。
+# 2. 使用时应遵守目标平台的使用条款和robots.txt规则。
+# 3. 不得进行大规模爬取或对平台造成运营干扰。
+# 4. 应合理控制请求频率，避免给目标平台带来不必要的负担。
 # 5. 不得用于任何非法或不当的用途。
-#   
-# 详细许可条款请参阅项目根目录下的LICENSE文件。  
-# 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。  
+#
+# 详细许可条款请参阅项目根目录下的LICENSE文件。
+# 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。
 
 
 # -*- coding: utf-8 -*-
@@ -37,7 +37,15 @@ def calculate_number_of_files(file_store_path: str) -> int:
     if not os.path.exists(file_store_path):
         return 1
     try:
-        return max([int(file_name.split("_")[0]) for file_name in os.listdir(file_store_path)]) + 1
+        return (
+            max(
+                [
+                    int(file_name.split("_")[0])
+                    for file_name in os.listdir(file_store_path)
+                ]
+            )
+            + 1
+        )
     except ValueError:
         return 1
 
@@ -69,7 +77,9 @@ class XhsCsvStoreImplement(AbstractStore):
         """
         pathlib.Path(self.csv_store_path).mkdir(parents=True, exist_ok=True)
         save_file_name = self.make_save_file_name(store_type=store_type)
-        async with aiofiles.open(save_file_name, mode='a+', encoding="utf-8-sig", newline="") as f:
+        async with aiofiles.open(
+            save_file_name, mode="a+", encoding="utf-8-sig", newline=""
+        ) as f:
             f.fileno()
             writer = csv.writer(f)
             if await f.tell() == 0:
@@ -120,15 +130,19 @@ class XhsDbStoreImplement(AbstractStore):
         Returns:
 
         """
-        from .xhs_store_sql import (add_new_content,
-                                    query_content_by_content_id,
-                                    update_content_by_content_id)
+        from .xhs_store_sql import (
+            add_new_content,
+            query_content_by_content_id,
+            update_content_by_content_id,
+        )
+
         note_id = content_item.get("note_id")
         note_detail: Dict = await query_content_by_content_id(content_id=note_id)
         if not note_detail:
             content_item["add_ts"] = utils.get_current_timestamp()
             await add_new_content(content_item)
         else:
+            content_item.pop("add_ts", None)
             await update_content_by_content_id(note_id, content_item=content_item)
 
     async def store_comment(self, comment_item: Dict):
@@ -140,15 +154,19 @@ class XhsDbStoreImplement(AbstractStore):
         Returns:
 
         """
-        from .xhs_store_sql import (add_new_comment,
-                                    query_comment_by_comment_id,
-                                    update_comment_by_comment_id)
+        from .xhs_store_sql import (
+            add_new_comment,
+            query_comment_by_comment_id,
+            update_comment_by_comment_id,
+        )
+
         comment_id = comment_item.get("comment_id")
         comment_detail: Dict = await query_comment_by_comment_id(comment_id=comment_id)
         if not comment_detail:
             comment_item["add_ts"] = utils.get_current_timestamp()
             await add_new_comment(comment_item)
         else:
+            comment_item.pop("add_ts", None)
             await update_comment_by_comment_id(comment_id, comment_item=comment_item)
 
     async def store_creator(self, creator: Dict):
@@ -160,14 +178,19 @@ class XhsDbStoreImplement(AbstractStore):
         Returns:
 
         """
-        from .xhs_store_sql import (add_new_creator, query_creator_by_user_id,
-                                    update_creator_by_user_id)
+        from .xhs_store_sql import (
+            add_new_creator,
+            query_creator_by_user_id,
+            update_creator_by_user_id,
+        )
+
         user_id = creator.get("user_id")
         user_detail: Dict = await query_creator_by_user_id(user_id)
         if not user_detail:
             creator["add_ts"] = utils.get_current_timestamp()
             await add_new_creator(creator)
         else:
+            creator.pop("add_ts", None)
             await update_creator_by_user_id(user_id, creator)
 
 
@@ -204,11 +227,11 @@ class XhsJsonStoreImplement(AbstractStore):
 
         async with self.lock:
             if os.path.exists(save_file_name):
-                async with aiofiles.open(save_file_name, 'r', encoding='utf-8') as file:
+                async with aiofiles.open(save_file_name, "r", encoding="utf-8") as file:
                     save_data = json.loads(await file.read())
 
             save_data.append(save_item)
-            async with aiofiles.open(save_file_name, 'w', encoding='utf-8') as file:
+            async with aiofiles.open(save_file_name, "w", encoding="utf-8") as file:
                 await file.write(json.dumps(save_data, ensure_ascii=False))
 
     async def store_content(self, content_item: Dict):

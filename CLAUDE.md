@@ -2,140 +2,88 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Overview
+## Commands
 
-MediaCrawlerPro is a Python-based social media crawling system that supports multiple platforms including XiaoHongShu (XHS), Weibo, TikTok (Douyin), Kuaishou, Bilibili, Tieba, and Zhihu. The system is designed for educational and research purposes only.
-
-## Project Architecture
-
-### Core Components
-
-- **main.py**: Entry point using CrawlerFactory pattern to instantiate platform-specific crawlers
-- **base/base_crawler.py**: Abstract base class (AbstractCrawler) that all platform crawlers inherit from
-- **media_platform/**: Platform-specific implementations, each containing:
-  - `client.py`: HTTP client for API communication
-  - `core.py`: Main crawler logic
-  - `handlers/`: Request handlers for different crawl types (search, detail, creator, homefeed)
-  - `processors/`: Data processing logic for posts, comments, etc.
-  - `field.py`: Platform-specific enums and constants
-- **config/**: Configuration management
-  - `base_config.py`: Main configuration file with platform and crawl settings
-  - `db_config.py`: Database connection settings
-  - `proxy_config.py`: Proxy configuration
-  - `sign_srv_config.py`: Signature service configuration
-- **pkg/**: Utility packages
-  - `account_pool/`: Multi-account management system
-  - `proxy/`: IP proxy management with rotation
-  - `cache/`: Caching layer (local/Redis)
-  - `rpc/sign_srv_client/`: Client for signature service (MediaCrawlerPro-SignSrv)
-- **repo/**: Data persistence layer with platform-specific stores
-- **model/**: Database models for each platform
-
-### Architecture Pattern
-
-The system uses a modular architecture where each platform crawler inherits from AbstractCrawler and implements:
-- `async_initialize()`: Setup phase
-- `start()`: Main crawling logic
-
-Each platform follows a handler-processor pattern:
-- Handlers manage different crawl types (search, detail, creator, homefeed)
-- Processors handle data transformation and storage
-
-## Common Commands
-
-### Running the Crawler
+### Running the crawler
 ```bash
-# Basic usage - crawl XiaoHongShu search results
-python main.py --platform xhs --type search
-
-# Crawl specific platforms
-python main.py --platform dy --type search    # Douyin
-python main.py --platform wb --type search    # Weibo  
-python main.py --platform bili --type search  # Bilibili
-
-# Crawl types
-python main.py --platform xhs --type detail    # Post details
-python main.py --platform xhs --type creator   # Creator profiles
-python main.py --platform xhs --type homefeed  # Home feed
-
-# Alternative with uv (if available)
-uv run main.py --platform xhs --type search
-```
-
-### Development Commands
-```bash
-# Install dependencies
+# Install dependencies (Python 3.9.6 or 3.11+ recommended)
 pip install -r requirements.txt
-# or with uv
-uv sync
+# or with uv package manager
+uv run main.py --platform xhs --type search
 
-# Type checking
-mypy .
+# Basic usage
+python main.py --platform xhs --type search
+python main.py --platform xhs --type search --keywords "deepseek,chatgpt"
+python main.py --platform dy --type creator
+python main.py --platform bili --type detail
 
-# Run tests
-python -m pytest test/
+# With checkpoint (断点续爬)
+python main.py --platform xhs --type search --enable_checkpoint
+python main.py --platform xhs --type search --checkpoint_id <specific_id>
 ```
 
-### Database Setup
-The system requires MySQL and Redis. Initialize database schema:
-```bash
-# Apply DDL scripts in order from schema/ directory
-mysql -u user -p database < schema/tables.sql
-```
+### Testing
+No test framework is currently configured. Manual testing is done by running the crawler with different platforms and parameters.
+
+## Architecture Overview
+
+This is a **MediaCrawlerPro** system - a multi-platform social media crawler that extracts data from platforms like XiaoHongShu (小红书), Douyin (抖音), Kuaishou (快手), Bilibili, Weibo, Tieba, and Zhihu.
+
+### Key Components
+
+1. **Platform Crawlers** (`media_platform/`): Each platform has its own crawler implementation inheriting from `AbstractCrawler`
+   - `xhs/` - XiaoHongShu crawler
+   - `douyin/` - Douyin crawler  
+   - `kuaishou/` - Kuaishou crawler
+   - `bilibili/` - Bilibili crawler
+   - `weibo/` - Weibo crawler
+   - `tieba/` - Baidu Tieba crawler
+   - `zhihu/` - Zhihu crawler
+
+2. **Sign Service Integration**: The system requires a separate signing service (`MediaCrawlerPro-SignSrv`) running on localhost to generate platform-specific request signatures. This decoupled architecture allows for better maintainability.
+
+3. **Account Pool & Proxy Management**:
+   - Supports multiple account management via cookies stored in Excel or MySQL
+   - IP proxy pool integration with Redis caching
+   - Built-in retry mechanisms for stability
+
+4. **Storage Options**:
+   - Database (MySQL) - **Recommended** for deduplication and efficiency
+   - CSV files
+   - JSON files
+
+5. **Checkpoint System**: Supports resumable crawling with checkpoints stored in files or Redis
 
 ## Configuration
 
-### Key Configuration Files
+### Main Configuration Files
 
-1. **config/base_config.py**: Primary configuration
-   - `PLATFORM`: Target platform ("xhs", "dy", "wb", etc.)
-   - `KEYWORDS`: Search keywords (comma-separated)
-   - `CRAWLER_TYPE`: "search", "detail", "creator", or "homefeed"
-   - `SAVE_DATA_OPTION`: "db", "csv", or "json"
-   - `CRAWLER_MAX_NOTES_COUNT`: Limit per crawl session
-   - `ENABLE_GET_COMMENTS`: Enable comment crawling
+- `config/base_config.py` - Core settings (platform, keywords, crawler type, storage options)
+- `config/db_config.py` - Database connection settings (MySQL, Redis)  
+- `config/proxy_config.py` - IP proxy pool configuration
+- `config/sign_config.py` - Sign service endpoint configuration
+- `config/account_pool/` - Account cookies storage (Excel or MySQL)
 
-2. **config/accounts_cookies.xlsx**: Account pool with cookies and proxies
+### Critical Configuration Variables
 
-3. **Database Configuration**: Set in config/db_config.py or environment variables
+- `PLATFORM` - Target platform (xhs, dy, ks, bili, wb, tieba, zhihu)
+- `CRAWLER_TYPE` - Type of crawling (search, detail, creator, homefeed)
+- `SAVE_DATA_OPTION` - Storage type (db, csv, json)
+- `ACCOUNT_POOL_SAVE_TYPE` - Account storage (xlsx, mysql)
+- `ENABLE_CHECKPOINT` - Enable resumable crawling
+- `MAX_CONCURRENCY_NUM` - Concurrent crawler count (keep low to avoid rate limiting)
 
-### Signature Service Dependency
+## Development Guidelines
 
-This project requires the companion MediaCrawlerPro-SignSrv service for request signing. The signature service must be running before starting the crawler.
+- The codebase follows an abstract factory pattern with platform-specific implementations
+- All platform crawlers inherit from `base.base_crawler.AbstractCrawler`
+- Request signing logic is externalized to a separate service for better decoupling
+- Heavy use of async/await patterns for concurrent operations
+- Built-in retry mechanisms and error handling for stability
+- Database operations use connection pooling for efficiency
 
-## Platform Support
+## Dependencies
 
-Each platform in media_platform/ follows the same structure:
-- **XHS (XiaoHongShu)**: Most mature implementation
-- **Douyin**: TikTok crawler with video support
-- **Weibo**: Microblog crawler
-- **Bilibili**: Video platform crawler
-- **Kuaishou**: Short video platform with GraphQL API
-- **Tieba**: Baidu forum crawler
-- **Zhihu**: Q&A platform crawler
-
-## Data Storage
-
-The system supports multiple storage backends:
-- **Database (Recommended)**: MySQL with deduplication
-- **CSV**: Simple file output
-- **JSON**: Structured file output
-
-Database tables are platform-specific and located in schema/ directory.
-
-## Key Features
-
-- **Multi-account Management**: Cookie rotation with IP proxy pairing
-- **Checkpoint System**: Resume interrupted crawls using data/checkpoints/
-- **Proxy Support**: IP rotation for stability
-- **Comment Crawling**: Optional nested comment extraction
-- **Data Deduplication**: Database-based duplicate detection
-
-## Testing
-
-Basic test suite in test/ directory:
-- Unit tests for utilities and caching
-- Test data processing functions
-- Proxy pool testing
-
-Run tests with: `python -m pytest test/`
+- Python 3.9.6 or 3.11+ (specified in pyproject.toml)
+- External services: MySQL, Redis, NodeJS (for sign service)
+- Sign service must be running before starting the main crawler

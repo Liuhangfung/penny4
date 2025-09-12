@@ -65,18 +65,20 @@ class NoteProcessor:
         note_detail: Optional[XhsNote] = None
         async with self.crawler_note_task_semaphore:
             try:
-                note_detail_from_html: Optional[XhsNote] = (
-                    await self.xhs_client.get_note_by_id_from_html(
+                note_detail_from_api: Optional[XhsNote] = (
+                    await self.xhs_client.get_note_by_id(
                         note_id, xsec_source, xsec_token
                     )
                 )
-                if not note_detail_from_html:
-                    note_detail_from_api: Optional[XhsNote] = (
-                        await self.xhs_client.get_note_by_id(
+
+                if not note_detail_from_api:
+                    note_detail_from_html: Optional[XhsNote] = (
+                        await self.xhs_client.get_note_by_id_from_html(
                             note_id, xsec_source, xsec_token
                         )
                     )
-                note_detail = note_detail_from_html or note_detail_from_api
+
+                note_detail = note_detail_from_api or note_detail_from_html
                 if note_detail:
                     await xhs_store.update_xhs_note(note_detail)
                     return note_detail

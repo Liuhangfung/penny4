@@ -44,7 +44,7 @@ MAX_CONCURRENCY_NUM = 1
 ENABLE_GET_COMMENTS = True
 
 # 是否开启爬二级评论模式, 默认不开启爬二级评论
-ENABLE_GET_SUB_COMMENTS = False
+ENABLE_GET_SUB_COMMENTS = True
 
 # 有的帖子评论数量太大了，这个变量用于一个帖子评论的最大数量，0表示不限制
 PER_NOTE_MAX_COMMENTS_COUNT = 0

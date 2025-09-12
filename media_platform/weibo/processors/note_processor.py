@@ -9,12 +9,13 @@
 # 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。
 
 import asyncio
-from typing import Dict, List, Optional, TYPE_CHECKING
+from typing import List, Optional, TYPE_CHECKING
 
 from pkg.tools import utils
 from repo.platform_save_data import weibo as weibo_store
 from ..exception import DataFetchError
 from config import base_config as config
+from model.m_weibo import WeiboNote
 
 if TYPE_CHECKING:
     from ..client import WeiboClient
@@ -46,7 +47,7 @@ class NoteProcessor:
         self,
         note_id: str,
         checkpoint_id: str,
-    ) -> Optional[Dict]:
+    ) -> Optional[WeiboNote]:
         """
         Get note detail from API
 
@@ -87,21 +88,20 @@ class NoteProcessor:
                 )
 
     async def batch_get_note_list(
-        self, note_list: List[Dict], checkpoint_id: str = ""
+        self, note_list: List[WeiboNote], checkpoint_id: str = ""
     ) -> List[str]:
         """
         Concurrently obtain the specified post list and save the data
         Args:
-            note_list: List of note items (containing mblog data)
+            note_list: List of WeiboNote models
             checkpoint_id: Checkpoint ID
 
         Returns:
             List of note IDs
         """
-        task_list, note_ids = [], []
+        note_ids = []
         for note_item in note_list:
-            mblog = note_item.get("mblog", {})
-            note_id = mblog.get("id", "")
+            note_id = note_item.note_id
             if not note_id:
                 continue
 

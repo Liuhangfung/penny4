@@ -9,14 +9,14 @@
 # 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。
 
 import asyncio
-from typing import Dict, List, Optional, TYPE_CHECKING
+from typing import List, TYPE_CHECKING, Optional
 
 import config
 import constant
 from model.m_checkpoint import Checkpoint
 from pkg.tools import utils
 from repo.platform_save_data import weibo as weibo_store
-from ..exception import DataFetchError
+from model.m_weibo import WeiboCreator, WeiboNote
 from .base_handler import BaseHandler
 
 if TYPE_CHECKING:
@@ -114,30 +114,28 @@ class CreatorHandler(BaseHandler):
             checkpoint.current_creator_id = user_id
             await self.checkpoint_manager.save_checkpoint(checkpoint)
 
-            createor_info_res: Dict = await self.wb_client.get_creator_info_by_id(
-                creator_id=user_id
+            creator_info: Optional[WeiboCreator] = (
+                await self.wb_client.get_creator_info_by_id(creator_id=user_id)
             )
-            if createor_info_res:
-                createor_info: Dict = createor_info_res.get("userInfo", {})
+            if creator_info:
                 utils.logger.info(
-                    f"[CreatorHandler.get_creators_and_notes] creator info: {createor_info}"
+                    f"[CreatorHandler.get_creators_and_notes] creator info: {creator_info}"
                 )
-                if not createor_info:
-                    raise DataFetchError("Get creator info error")
-                await weibo_store.save_creator(user_id, user_info=createor_info)
+                await weibo_store.save_creator(creator_info)
+
+                # Get container info for fetching notes
+                container_info = await self.wb_client.get_creator_container_info(
+                    user_id
+                )
 
                 # Get all note information of the creator
                 all_notes_list = await self.get_all_notes_by_creator(
                     creator_id=user_id,
-                    container_id=createor_info_res.get("lfid_container_id"),
+                    container_id=container_info.get("lfid_container_id"),
                     checkpoint_id=checkpoint.id,
                 )
 
-                note_ids = [
-                    note_item.get("mblog", {}).get("id")
-                    for note_item in all_notes_list
-                    if note_item.get("mblog", {}).get("id")
-                ]
+                note_ids = [note.note_id for note in all_notes_list if note.note_id]
                 await self.comment_processor.batch_get_note_comments(
                     note_ids, checkpoint_id=checkpoint.id
                 )
@@ -152,7 +150,7 @@ class CreatorHandler(BaseHandler):
         creator_id: str,
         container_id: str,
         checkpoint_id: str = "",
-    ) -> List[Dict]:
+    ) -> List[WeiboNote]:
         """
         获取指定用户下的所有发过的帖子，该方法会一直查找一个用户下的所有帖子信息
         Args:
@@ -190,11 +188,18 @@ class CreatorHandler(BaseHandler):
                 )
                 break
 
-            notes = notes_res["cards"]
+            cards = notes_res["cards"]
             utils.logger.info(
-                f"[CreatorHandler.get_all_notes_by_creator] got user_id:{creator_id} notes len : {len(notes)}"
+                f"[CreatorHandler.get_all_notes_by_creator] got user_id:{creator_id} cards len : {len(cards)}"
             )
-            notes = [note for note in notes if note.get("card_type") == 9]
+
+            # Extract notes from cards
+            notes = []
+            for card in cards:
+                if card.get("card_type") == 9:
+                    note = self.wb_client._extractor.extract_note_from_dict(card)
+                    if note:
+                        notes.append(note)
 
             # Process notes through note processor
             note_ids = await self.note_processor.batch_get_note_list(

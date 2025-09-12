@@ -18,7 +18,7 @@ import asyncio
 import copy
 import json
 import re
-from typing import Callable, Dict, List, Optional, Union, cast
+from typing import Callable, Dict, List, Optional, Union, cast, Tuple
 from urllib.parse import parse_qs, unquote, urlencode
 
 import httpx
@@ -28,6 +28,7 @@ from tenacity import RetryError, retry, stop_after_attempt, wait_fixed
 import config
 from config import PER_NOTE_MAX_COMMENTS_COUNT
 from constant.weibo import WEIBO_API_URL
+from model.m_weibo import WeiboNote, WeiboComment, WeiboCreator
 from pkg.account_pool import AccountWithIpModel
 from pkg.account_pool.pool import AccountWithIpPoolManager
 from pkg.proxy import IpInfoModel
@@ -35,6 +36,7 @@ from pkg.proxy.proxy_ip_pool import ProxyIpPool
 from pkg.tools import utils
 
 from .exception import DataFetchError
+from .extractor import WeiboExtractor
 from .field import SearchType
 
 
@@ -57,6 +59,7 @@ class WeiboClient:
         self.timeout = timeout
         self._user_agent = user_agent or utils.get_user_agent()
         self.account_with_ip_pool = account_with_ip_pool
+        self._extractor = WeiboExtractor()
 
     @property
     def headers(self):
@@ -304,13 +307,13 @@ class WeiboClient:
 
     async def get_note_by_keyword(
         self, keyword: str, page: int = 1, search_type: SearchType = SearchType.DEFAULT
-    ) -> Dict:
+    ) -> Tuple[List[WeiboNote], Dict]:
         """
         search note by keyword
         :param keyword: 微博搜搜的关键词
         :param page: 分页参数 -当前页码
         :param search_type: 搜索的类型，见 weibo/filed.py 中的枚举SearchType
-        :return:
+        :return: (notes_list, raw_response)
         """
         uri = "/api/container/getIndex"
         containerid = f"100103type={search_type.value}&q={keyword}"
@@ -319,11 +322,30 @@ class WeiboClient:
             "page_type": "searchall",
             "page": page,
         }
-        return cast(Dict, await self.get(uri, params))
+        res = cast(Dict, await self.get(uri, params))
+
+        # 提取笔记列表 - 需要处理嵌套的card_group结构
+        cards = res.get("cards", [])
+        notes = []
+        for card in cards:
+            if card.get("card_type") == 9:  # 微博类型
+                note = self._extractor.extract_note_from_dict(card)
+                if note:
+                    notes.append(note)
+            # 处理嵌套的card_group
+            if len(card.get("card_group", [])) > 0:
+                card_group = card.get("card_group", [])
+                for card_group_item in card_group:
+                    if card_group_item.get("card_type") == 9:
+                        note = self._extractor.extract_note_from_dict(card_group_item)
+                        if note:
+                            notes.append(note)
+
+        return notes, res
 
     async def get_note_comments(
         self, mid_id: str, max_id: int, max_id_type: int = 0
-    ) -> Dict:
+    ) -> Tuple[List[WeiboComment], Dict]:
         """get notes comments
         :param mid_id: 微博ID
         :param max_id: 分页参数ID
@@ -343,10 +365,16 @@ class WeiboClient:
         headers = copy.copy(self.headers)
         headers["Referer"] = referer_url
 
-        return cast(Dict, await self.get(uri, params, headers=headers))
+        res = cast(Dict, await self.get(uri, params, headers=headers))
 
+        # 提取评论列表 - res已经是data的内容了
+        comments_data = res.get("data", [])
+        comments = self._extractor.extract_comments_from_list(mid_id, comments_data)
 
-    async def get_note_info_by_id(self, note_id: str) -> Dict:
+        # 返回评论和原始响应（包含分页信息等）
+        return comments, res
+
+    async def get_note_info_by_id(self, note_id: str) -> Optional[WeiboNote]:
         """
         根据帖子ID获取详情
         :param note_id:
@@ -364,12 +392,12 @@ class WeiboClient:
             render_data_dict = json.loads(render_data_json)
             note_detail = render_data_dict[0].get("status")
             note_item = {"mblog": note_detail}
-            return note_item
+            return self._extractor.extract_note_from_dict(note_item)
         else:
             utils.logger.info(
                 f"[WeiboClient.get_note_info_by_id] 未找到$render_data的值"
             )
-            return dict()
+            return None
 
     async def get_creator_container_info(self, creator_id: str) -> Dict:
         """
@@ -392,7 +420,7 @@ class WeiboClient:
             "lfid_container_id": m_weibocn_params_dict.get("lfid", [""])[0],
         }
 
-    async def get_creator_info_by_id(self, creator_id: str) -> Dict:
+    async def get_creator_info_by_id(self, creator_id: str) -> Optional[WeiboCreator]:
         """
         根据用户ID获取用户详情
         Args:
@@ -421,7 +449,12 @@ class WeiboClient:
                     break
 
         user_res.update(container_info)
-        return user_res
+
+        # 提取用户信息
+        user_info = user_res.get("userInfo", {})
+        if user_info:
+            return self._extractor.extract_creator_from_dict(user_info)
+        return None
 
     async def get_notes_by_creator(
         self,

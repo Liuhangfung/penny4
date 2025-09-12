@@ -17,7 +17,6 @@ from model.m_checkpoint import Checkpoint
 from pkg.tools import utils
 from var import source_keyword_var
 from ..field import SearchType
-from ..help import filter_search_result_card
 from .base_handler import BaseHandler
 
 if TYPE_CHECKING:
@@ -150,10 +149,11 @@ class SearchHandler(BaseHandler):
                     utils.logger.info(
                         f"[SearchHandler.search] search weibo keyword: {keyword}, page: {page}"
                     )
-                    search_res = await self.wb_client.get_note_by_keyword(
+                    notes, _ = await self.wb_client.get_note_by_keyword(
                         keyword=keyword, page=page, search_type=SearchType.DEFAULT
                     )
-                    note_list = filter_search_result_card(search_res.get("cards", []))
+                    # notes already extracted as WeiboNote models
+                    note_list = notes
                     if not note_list:
                         utils.logger.info("No more content!")
                         break
@@ -179,7 +179,7 @@ class SearchHandler(BaseHandler):
                     utils.logger.info(
                         "------------------------------------------记录当前爬取的关键词和页码------------------------------------------"
                     )
-                    for i in range(3):
+                    for _ in range(3):
                         utils.logger.error(
                             f"[SearchHandler.search] Current keyword: {keyword}, page: {page}"
                         )

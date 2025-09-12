@@ -18,6 +18,7 @@ from config import PER_NOTE_MAX_COMMENTS_COUNT
 from pkg.tools import utils
 from repo.platform_save_data import weibo as weibo_store
 from ..exception import DataFetchError
+from model.m_weibo import WeiboComment
 
 if TYPE_CHECKING:
     from ..client import WeiboClient
@@ -160,12 +161,12 @@ class CommentProcessor:
                 )
 
         while not is_end:
-            comments_res = await self.wb_client.get_note_comments(note_id, max_id, max_id_type)
+            comments, comments_res = await self.wb_client.get_note_comments(note_id, max_id, max_id_type)
             if not comments_res:
                 break
             max_id = comments_res.get("max_id", 0)
             max_id_type = comments_res.get("max_id_type", 0)
-            comment_list: List[Dict] = comments_res.get("data", [])
+            comment_list = comments  # Now WeiboComment models
             is_end = max_id == 0
 
             # 更新评论游标到checkpoint中（将整数转换为字符串存储）
@@ -211,8 +212,8 @@ class CommentProcessor:
 
     @staticmethod
     async def get_comments_all_sub_comments(
-        note_id: str, comment_list: List[Dict], callback: Optional[Callable] = None
-    ) -> List[Dict]:
+        note_id: str, comment_list: List[WeiboComment], callback: Optional[Callable] = None
+    ) -> List[WeiboComment]:
         """
         获取评论的所有子评论
         Args:
@@ -231,8 +232,8 @@ class CommentProcessor:
 
         res_sub_comments = []
         for comment in comment_list:
-            sub_comments = comment.get("comments")
-            if sub_comments and isinstance(sub_comments, list):
+            sub_comments = comment.sub_comments or []
+            if sub_comments:
                 if callback:
                     await callback(note_id, sub_comments)
                 res_sub_comments.extend(sub_comments)

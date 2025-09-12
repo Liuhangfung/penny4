@@ -18,6 +18,7 @@ import re
 from typing import List
 
 import config
+from model.m_weibo import WeiboNote, WeiboComment, WeiboCreator
 from var import source_keyword_var
 
 from .weibo_store_impl import *
@@ -40,147 +41,45 @@ class WeibostoreFactory:
         return store_class()
 
 
-def get_video_url_arr(mblog: Dict) -> List:
-    """
-    获取微博笔记的多个视频地址
-
-    Args:
-        mblog (Dict): 微博笔记
-
-    Returns:
-        List: 多个视频地址
-    """
-    res_video_url_arr: List[str] = []
-    page_info: Dict = mblog.get("page_info", {})
-    many_quality_keys = ["mp4_720p_mp4", "mp4_hd_mp4", "mp4_ld_mp4"]
-    if page_info.get("type") == "video":
-        urls: Dict = page_info.get("urls", {})
-        for key in many_quality_keys:
-            if urls.get(key):
-                res_video_url_arr.append(urls.get(key))
-    return res_video_url_arr
-
-
-def get_image_list_arr(mblog: Dict) -> List:
-    """
-    获取微博笔记的多个封面图片地址
-
-    Args:
-        mblog (Dict): 微博笔记
-
-    Returns:
-        List: 多个封面图片地址
-    """
-    res_image_list_arr: List[str] = []
-    pics: List[Dict] = mblog.get("pics", [])
-    for pic in pics:
-        res_image_list_arr.append(pic.get("url"))
-    return res_image_list_arr
-
-
-async def batch_update_weibo_notes(note_list: List[Dict]):
+async def batch_update_weibo_notes(note_list: List[WeiboNote]):
     if not note_list:
         return
     for note_item in note_list:
         await update_weibo_note(note_item)
 
 
-async def update_weibo_note(note_item: Dict):
-    mblog: Dict = note_item.get("mblog")
-    user_info: Dict = mblog.get("user")
-    note_id = mblog.get("id")
-    content_text = mblog.get("text")
-    clean_text = re.sub(r"<.*?>", "", content_text)
-
-    image_list = get_image_list_arr(mblog)
-    video_url = get_video_url_arr(mblog)
-
-    save_content_item = {
-        # 微博信息
-        "note_id": note_id,
-        "content": clean_text,
-        "create_time": utils.rfc2822_to_timestamp(mblog.get("created_at")),
-        "create_date_time": str(
-            utils.rfc2822_to_china_datetime(mblog.get("created_at"))
-        ),
-        "liked_count": str(mblog.get("attitudes_count", 0)),
-        "comments_count": str(mblog.get("comments_count", 0)),
-        "shared_count": str(mblog.get("reposts_count", 0)),
-        "last_modify_ts": utils.get_current_timestamp(),
-        "note_url": f"https://m.weibo.cn/detail/{note_id}",
-        "ip_location": mblog.get("region_name", "").replace("发布于 ", ""),
-        # 用户信息
-        "user_id": str(user_info.get("id")),
-        "nickname": user_info.get("screen_name", ""),
-        "gender": user_info.get("gender", ""),
-        "profile_url": user_info.get("profile_url", ""),
-        "avatar": user_info.get("profile_image_url", ""),
-        # 拿到图片和视频地址后，正常访问是会403的，需要携带对应移动端的请求头
-        # 示例
-        # referer: https://m.weibo.cn/
-        # user_agent: Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1
-        "image_list": ",".join(image_list),
-        "video_url": ",".join(video_url),
-        "source_keyword": source_keyword_var.get(),
-    }
+async def update_weibo_note(note_item: WeiboNote):
     utils.logger.info(
-        f"[store.weibo.update_weibo_note] weibo note id:{note_id}, title:{save_content_item.get('content')[:24]} ..."
+        f"[store.weibo.update_weibo_note] weibo note id:{note_item.note_id}, title:{note_item.content[:24]} ..."
     )
+
+    save_content_item = note_item.model_dump()
+    save_content_item["last_modify_ts"] = utils.get_current_timestamp()
     await WeibostoreFactory.create_store().store_content(content_item=save_content_item)
 
 
-async def batch_update_weibo_note_comments(note_id: str, comments: List[Dict]):
+async def batch_update_weibo_note_comments(note_id: str, comments: List[WeiboComment]):
     if not comments:
         return
     for comment_item in comments:
-        await update_weibo_note_comment(note_id, comment_item)
+        await update_weibo_note_comment(comment_item)
 
 
-async def update_weibo_note_comment(note_id: str, comment_item: Dict):
-    comment_id = str(comment_item.get("id"))
-    user_info: Dict = comment_item.get("user")
-    content_text = comment_item.get("text")
-    clean_text = re.sub(r"<.*?>", "", content_text)
-    save_comment_item = {
-        "comment_id": comment_id,
-        "create_time": utils.rfc2822_to_timestamp(comment_item.get("created_at")),
-        "create_date_time": str(
-            utils.rfc2822_to_china_datetime(comment_item.get("created_at"))
-        ),
-        "note_id": note_id,
-        "content": clean_text,
-        "sub_comment_count": str(comment_item.get("total_number", 0)),
-        "like_count": (
-            comment_item.get("like_count") if comment_item.get("like_count") else 0
-        ),
-        "last_modify_ts": utils.get_current_timestamp(),
-        "ip_location": comment_item.get("source", "").replace("来自", ""),
-        "parent_comment_id": comment_item.get("rootid", ""),
-        # 用户信息
-        "user_id": str(user_info.get("id")),
-        "nickname": user_info.get("screen_name", ""),
-        "gender": user_info.get("gender", ""),
-        "profile_url": user_info.get("profile_url", ""),
-        "avatar": user_info.get("profile_image_url", ""),
-    }
+async def update_weibo_note_comment(comment_item: WeiboComment):
     utils.logger.info(
-        f"[store.weibo.update_weibo_note_comment] Weibo note comment: {comment_id}, content: {save_comment_item.get('content', '')[:24]} ..."
+        f"[store.weibo.update_weibo_note_comment] Weibo note comment: {comment_item.comment_id}, content: {comment_item.content[:24]} ..."
     )
+
+    save_comment_item = comment_item.model_dump(exclude={"sub_comments"})
+    save_comment_item["last_modify_ts"] = utils.get_current_timestamp()
     await WeibostoreFactory.create_store().store_comment(comment_item=save_comment_item)
 
 
-async def save_creator(user_id: str, user_info: Dict):
-    local_db_item = {
-        "user_id": user_id,
-        "nickname": user_info.get("screen_name"),
-        "gender": "女" if user_info.get("gender") == "f" else "男",
-        "avatar": user_info.get("avatar_hd"),
-        "desc": user_info.get("description"),
-        "ip_location": user_info.get("source", "").replace("来自", ""),
-        "follows": user_info.get("follow_count", ""),
-        "fans": user_info.get("followers_count", ""),
-        "tag_list": "",
-        "last_modify_ts": utils.get_current_timestamp(),
-    }
-    utils.logger.info(f"[store.weibo.save_creator] creator:{local_db_item}")
+async def save_creator(creator_info: WeiboCreator):
+    utils.logger.info(
+        f"[store.weibo.save_creator] creator: user_id={creator_info.user_id}, nickname={creator_info.nickname}"
+    )
+
+    local_db_item = creator_info.model_dump()
+    local_db_item["last_modify_ts"] = utils.get_current_timestamp()
     await WeibostoreFactory.create_store().store_creator(local_db_item)

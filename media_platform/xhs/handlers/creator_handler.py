@@ -14,10 +14,10 @@ from typing import Dict, List, TYPE_CHECKING
 import config
 import constant
 from model.m_checkpoint import Checkpoint
-from model.m_xiaohongshu import CreatorUrlInfo
+from model.m_xhs import CreatorUrlInfo
 from pkg.tools import utils
 from repo.platform_save_data import xhs as xhs_store
-from ..help import parse_creator_info_from_creator_url
+from ..extractor import XiaoHongShuExtractor
 from .base_handler import BaseHandler
 
 if TYPE_CHECKING:
@@ -49,6 +49,7 @@ class CreatorHandler(BaseHandler):
         super().__init__(
             xhs_client, checkpoint_manager, note_processor, comment_processor
         )
+        self.extractor = XiaoHongShuExtractor()
 
     async def handle(self) -> None:
         """
@@ -59,8 +60,7 @@ class CreatorHandler(BaseHandler):
         """
         await self.get_creators_and_notes()
 
-    @staticmethod
-    def _find_creator_index_in_creator_list(creator_id: str) -> int:
+    def _find_creator_index_in_creator_list(self, creator_id: str) -> int:
         """
         Find creator index in creator list
 
@@ -72,7 +72,7 @@ class CreatorHandler(BaseHandler):
         """
         creator_list = config.XHS_CREATOR_URL_LIST
         for index, creator_item in enumerate(creator_list):
-            creator_url_info: CreatorUrlInfo = parse_creator_info_from_creator_url(
+            creator_url_info: CreatorUrlInfo = self.extractor.parse_creator_info_from_creator_url(
                 creator_item
             )
             if creator_url_info.creator_id == creator_id:
@@ -115,7 +115,7 @@ class CreatorHandler(BaseHandler):
                 creator_list = creator_list[creator_index:]
 
         for creator_url in creator_list:
-            creator_url_info: CreatorUrlInfo = parse_creator_info_from_creator_url(
+            creator_url_info: CreatorUrlInfo = self.extractor.parse_creator_info_from_creator_url(
                 creator_url
             )
             checkpoint.current_creator_id = creator_url_info.creator_id

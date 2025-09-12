@@ -13,7 +13,8 @@ import re
 from typing import Dict, List, Optional
 
 import humps
-from model.m_xhs import XhsComment, XhsCreator, XhsNote
+from model.m_xhs import XhsComment, XhsCreator, XhsNote, NoteUrlInfo, CreatorUrlInfo
+from pkg.tools.crawler_util import extract_url_params_to_dict
 from var import source_keyword_var
 
 
@@ -248,4 +249,36 @@ class XiaoHongShuExtractor:
                 },
                 ensure_ascii=False,
             ),
+        )
+
+    def parse_note_info_from_note_url(self, url: str) -> NoteUrlInfo:
+        """
+        从小红书笔记url中解析出笔记信息
+        Args:
+            url: "https://www.xiaohongshu.com/explore/66fad51c000000001b0224b8?xsec_token=AB3rO-QopW5sgrJ41GwN01WCXh6yWPxjSoFI9D5JIMgKw=&xsec_source=pc_search"
+        Returns:
+
+        """
+        note_id = url.split("/")[-1].split("?")[0]
+        params = extract_url_params_to_dict(url)
+        xsec_token = params.get("xsec_token", "")
+        xsec_source = params.get("xsec_source", "")
+        return NoteUrlInfo(note_id=note_id, xsec_token=xsec_token, xsec_source=xsec_source)
+
+    def parse_creator_info_from_creator_url(self, url: str) -> CreatorUrlInfo:
+        """
+        从小红书创作者主页url中解析出创作者信息
+
+        Args:
+            url (str): 创作者主页url
+
+        Returns:
+            CreatorUrlInfo: 创作者信息
+        """
+        creator_id = url.split("/")[-1].split("?")[0]
+        params = extract_url_params_to_dict(url)
+        xsec_token = params.get("xsec_token", "")
+        xsec_source = params.get("xsec_source", "")
+        return CreatorUrlInfo(
+            creator_id=creator_id, xsec_token=xsec_token, xsec_source=xsec_source
         )

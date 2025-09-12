@@ -12,9 +12,9 @@ from typing import List, TYPE_CHECKING, Dict
 import config
 import constant
 from model.m_checkpoint import Checkpoint
-from model.m_xiaohongshu import NoteUrlInfo
+from model.m_xhs import NoteUrlInfo
 from pkg.tools import utils
-from ..help import parse_note_info_from_note_url
+from ..extractor import XiaoHongShuExtractor
 from .base_handler import BaseHandler
 
 if TYPE_CHECKING:
@@ -44,6 +44,7 @@ class DetailHandler(BaseHandler):
             comment_processor: Comment processing component
         """
         super().__init__(xhs_client, checkpoint_manager, note_processor, comment_processor)
+        self.extractor = XiaoHongShuExtractor()
     
     async def handle(self) -> None:
         """
@@ -84,7 +85,7 @@ class DetailHandler(BaseHandler):
         # 从配置文件中解析指定帖子信息
         note_list: List[Dict] = []
         for full_note_url in config.XHS_SPECIFIED_NOTE_URL_LIST:
-            note_url_info: NoteUrlInfo = parse_note_info_from_note_url(full_note_url)
+            note_url_info: NoteUrlInfo = self.extractor.parse_note_info_from_note_url(full_note_url)
             note_list.append(
                 {
                     "note_id": note_url_info.note_id,

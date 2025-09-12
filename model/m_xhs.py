@@ -13,6 +13,18 @@
 from pydantic import BaseModel, Field
 
 
+class NoteUrlInfo(BaseModel):
+    note_id: str = Field(title="note id")
+    xsec_token: str = Field(title="xsec token")
+    xsec_source: str = Field(title="xsec source")
+
+
+class CreatorUrlInfo(BaseModel):
+    creator_id: str = Field(title="creator id")
+    xsec_token: str = Field(title="xsec token")
+    xsec_source: str = Field(title="xsec source")
+
+
 class XhsNote(BaseModel):
     """
     小红书笔记

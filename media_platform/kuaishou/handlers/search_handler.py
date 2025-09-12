@@ -150,7 +150,7 @@ class SearchHandler(BaseHandler):
                     )
 
                     video_id_list: List[str] = []
-                    videos_res = await self.ks_client.search_info_by_keyword(
+                    videos, videos_res = await self.ks_client.search_info_by_keyword(
                         keyword=keyword,
                         pcursor=str(page),
                         search_session_id=search_session_id,
@@ -170,36 +170,32 @@ class SearchHandler(BaseHandler):
                         continue
 
                     search_session_id = vision_search_photo.get("searchSessionId", "")
-                    video_list = vision_search_photo.get("feeds", [])
 
                     # 处理视频列表并保存
-                    for video_detail in video_list:
-                        video_id = video_detail.get("photo", {}).get("id")
-                        if not video_id:
+                    for video in videos:
+                        if not video.video_id:
                             continue
 
-                        video_id_list.append(video_id)
+                        video_id_list.append(video.video_id)
 
                         # 检查是否已经爬取过
                         if await self.checkpoint_manager.check_note_is_crawled_in_checkpoint(
-                            checkpoint_id=checkpoint.id, note_id=video_id
+                            checkpoint_id=checkpoint.id, note_id=video.video_id
                         ):
                             utils.logger.info(
-                                f"[SearchHandler.search] video {video_id} is already crawled, skip"
+                                f"[SearchHandler.search] video {video.video_id} is already crawled, skip"
                             )
                             saved_video_count += 1
                             continue
 
                         await self.checkpoint_manager.add_note_to_checkpoint(
                             checkpoint_id=checkpoint.id,
-                            note_id=video_id,
+                            note_id=video.video_id,
                             extra_params_info={},
                             is_success_crawled=True,
                         )
 
-                        await kuaishou_store.update_kuaishou_video(
-                            video_item=video_detail
-                        )
+                        await kuaishou_store.update_kuaishou_video(video)
                         saved_video_count += 1
 
                     # 批量获取视频评论

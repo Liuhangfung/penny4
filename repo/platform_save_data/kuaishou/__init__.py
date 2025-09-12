@@ -16,9 +16,16 @@
 from typing import List
 
 import config
+from base.base_crawler import AbstractStore
+from model.m_kuaishou import KuaishouVideo, KuaishouVideoComment, KuaishouCreator
+from pkg.tools import utils
 from var import source_keyword_var
 
-from .kuaishou_store_impl import *
+from .kuaishou_store_impl import (
+    KuaishouCsvStoreImplement,
+    KuaishouDbStoreImplement,
+    KuaishouJsonStoreImplement,
+)
 
 
 class KuaishouStoreFactory:
@@ -38,89 +45,78 @@ class KuaishouStoreFactory:
         return store_class()
 
 
-async def update_kuaishou_video(video_item: Dict):
-    photo_info: Dict = video_item.get("photo", {})
-    video_id = photo_info.get("id")
-    if not video_id:
+async def batch_update_kuaishou_videos(videos: List[KuaishouVideo]):
+    """批量更新快手视频
+    
+    Args:
+        videos: 视频列表
+    """
+    if not videos:
         return
-    user_info = video_item.get("author", {})
-    save_content_item = {
-        "video_id": video_id,
-        "video_type": str(video_item.get("type")),
-        "title": photo_info.get("caption", "")[:500],
-        "desc": photo_info.get("caption", "")[:500],
-        "create_time": photo_info.get("timestamp"),
-        "user_id": user_info.get("id"),
-        "nickname": user_info.get("name"),
-        "avatar": user_info.get("headerUrl", ""),
-        "liked_count": str(photo_info.get("realLikeCount")),
-        "viewd_count": str(photo_info.get("viewCount")),
-        "last_modify_ts": utils.get_current_timestamp(),
-        "video_url": f"https://www.kuaishou.com/short-video/{video_id}",
-        "video_cover_url": photo_info.get("coverUrl", ""),
-        "video_play_url": photo_info.get("photoUrl", ""),
-        "source_keyword": source_keyword_var.get(),
-    }
+    
+    for video_item in videos:
+        await update_kuaishou_video(video_item)
+
+
+async def update_kuaishou_video(video_item: KuaishouVideo):
+    """更新快手视频
+    
+    Args:
+        video_item: 视频对象
+    """
+    video_item.source_keyword = source_keyword_var.get()
+    local_db_item = video_item.model_dump()
+    local_db_item.update({"last_modify_ts": utils.get_current_timestamp()})
+    
+    print_title = video_item.title[:30] if video_item.title else video_item.desc[:30]
     utils.logger.info(
-        f"[store.kuaishou.update_kuaishou_video] Kuaishou video id:{video_id}, title:{save_content_item.get('title')}"
+        f"[store.kuaishou.update_kuaishou_video] kuaishou video, id: {video_item.video_id}, title: {print_title}"
     )
-    await KuaishouStoreFactory.create_store().store_content(
-        content_item=save_content_item
-    )
+    await KuaishouStoreFactory.create_store().store_content(local_db_item)
 
 
-async def batch_update_ks_video_comments(video_id: str, comments: List[Dict]):
+async def batch_update_ks_video_comments(comments: List[KuaishouVideoComment]):
+    """批量更新快手视频评论
+    
+    Args:
+        comments: 评论列表
+    """
     if not comments:
         return
-
-    utils.logger.info(
-        f"[store.kuaishou.batch_update_ks_video_comments] video_id:{video_id}, comment_count:{len(comments)}"
-    )
+    
     for comment_item in comments:
-        await update_ks_video_comment(video_id, comment_item)
+        await update_ks_video_comment(comment_item)
 
 
-async def update_ks_video_comment(video_id: str, comment_item: Dict):
-    comment_id = comment_item.get("commentId")
-    save_comment_item = {
-        "comment_id": comment_id,
-        "create_time": comment_item.get("timestamp"),
-        "video_id": video_id,
-        "content": comment_item.get("content"),
-        "user_id": comment_item.get("authorId"),
-        "nickname": comment_item.get("authorName"),
-        "avatar": comment_item.get("headurl"),
-        "sub_comment_count": str(comment_item.get("subCommentCount", 0)),
-        "last_modify_ts": utils.get_current_timestamp(),
-        "like_count": (
-            comment_item.get("realLikedCount")
-            if comment_item.get("realLikedCount")
-            else 0
-        ),
-    }
+async def update_ks_video_comment(comment_item: KuaishouVideoComment):
+    """更新快手视频评论
+    
+    Args:
+        comment_item: 评论对象
+    """
+    local_db_item = comment_item.model_dump()
+    local_db_item.update({"last_modify_ts": utils.get_current_timestamp()})
+    
     utils.logger.info(
-        f"[store.kuaishou.update_ks_video_comment] Kuaishou video comment: {comment_id}, content: {save_comment_item.get('content')}"
+        f"[store.kuaishou.update_ks_video_comment] kuaishou video comment, video_id: {comment_item.video_id}, comment_id: {comment_item.comment_id}"
     )
-    await KuaishouStoreFactory.create_store().store_comment(
-        comment_item=save_comment_item
+    await KuaishouStoreFactory.create_store().store_comment(local_db_item)
+
+
+async def save_creator(user_id: str, creator: KuaishouCreator):
+    """保存快手创作者信息
+    
+    Args:
+        user_id: 用户ID
+        creator: 创作者对象
+    """
+    if not creator:
+        return
+    
+    local_db_item = creator.model_dump()
+    local_db_item.update({"last_modify_ts": utils.get_current_timestamp()})
+    
+    utils.logger.info(
+        f"[store.kuaishou.save_creator] kuaishou creator, id: {creator.user_id}, nickname: {creator.nickname}"
     )
-
-
-async def save_creator(user_id: str, creator: Dict):
-    owner_count = creator.get("ownerCount", {})
-    profile = creator.get("profile", {})
-
-    local_db_item = {
-        "user_id": user_id,
-        "nickname": profile.get("user_name"),
-        "gender": "女" if profile.get("gender") == "F" else "男",
-        "avatar": profile.get("headurl"),
-        "desc": profile.get("user_text"),
-        "ip_location": "",
-        "follows": owner_count.get("follow"),
-        "fans": owner_count.get("fan"),
-        "videos_count": owner_count.get("photo_public"),
-        "last_modify_ts": utils.get_current_timestamp(),
-    }
-    utils.logger.info(f"[store.kuaishou.save_creator] creator:{local_db_item}")
     await KuaishouStoreFactory.create_store().store_creator(local_db_item)

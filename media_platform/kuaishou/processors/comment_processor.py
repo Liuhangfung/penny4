@@ -15,6 +15,7 @@ from typing import Dict, List, Optional, Callable, TYPE_CHECKING
 
 import config
 from config import PER_NOTE_MAX_COMMENTS_COUNT
+from model.m_kuaishou import KuaishouVideoComment
 from pkg.tools import utils
 from repo.platform_save_data import kuaishou as kuaishou_store
 from ..exception import DataFetchError
@@ -105,7 +106,6 @@ class CommentProcessor:
                 # 获取视频的所有评论
                 await self.get_video_all_comments(
                     photo_id=video_id,
-                    callback=kuaishou_store.batch_update_ks_video_comments,
                     checkpoint_id=checkpoint_id
                 )
                 utils.logger.info(
@@ -123,9 +123,8 @@ class CommentProcessor:
     async def get_video_all_comments(
         self,
         photo_id: str,
-        callback: Optional[Callable] = None,
         checkpoint_id: str = "",
-    ):
+    ) -> List[KuaishouVideoComment]:
         """
         获取视频所有评论，包括一级评论和二级评论，支持断点续传
         
@@ -135,7 +134,7 @@ class CommentProcessor:
             checkpoint_id: checkpoint id for resume functionality
             
         Returns:
-            List of comments
+            List[KuaishouVideoComment]: 评论模型列表
         """
         result = []
         pcursor = ""
@@ -153,13 +152,15 @@ class CommentProcessor:
         
         while pcursor != "no_more":
             try:
-                comments_res = await self.ks_client.get_video_comments(photo_id, pcursor)
+                comments, comments_res = await self.ks_client.get_video_comments(photo_id, pcursor)
                 vision_comment_list = comments_res.get("visionCommentList", {})
                 pcursor = vision_comment_list.get("pcursor", "")
-                comments = vision_comment_list.get("rootComments", [])
                 
-                if callback:
-                    await callback(photo_id, comments)
+                if not comments:
+                    continue
+                    
+                # 保存评论到数据库
+                await kuaishou_store.batch_update_ks_video_comments(comments)
                 result.extend(comments)
                 
                 # 更新checkpoint中的评论游标
@@ -182,7 +183,7 @@ class CommentProcessor:
                 # 爬虫请求间隔时间
                 await asyncio.sleep(config.CRAWLER_TIME_SLEEP)
                 sub_comments = await self.get_comments_all_sub_comments(
-                    comments, photo_id, callback
+                    comments, vision_comment_list.get("rootComments", []), photo_id
                 )
                 result.extend(sub_comments)
                 
@@ -190,7 +191,7 @@ class CommentProcessor:
                 utils.logger.error(
                     f"[CommentProcessor.get_video_all_comments] Error getting comments for {photo_id}: {e}"
                 )
-                return None
+                return result
         
         # 标记该video的评论已完全爬取
         await self.checkpoint_manager.update_note_comment_cursor(
@@ -200,23 +201,23 @@ class CommentProcessor:
             is_success_crawled_comments=True,
         )
         
-        return None
+        return result
 
     async def get_comments_all_sub_comments(
         self,
-        comments: List[Dict],
+        comments: List[KuaishouVideoComment],
+        raw_comments: List[Dict],
         photo_id: str,
-        callback: Optional[Callable] = None,
-    ) -> List[Dict]:
+    ) -> List[KuaishouVideoComment]:
         """
         获取指定一级评论下的所有二级评论, 该方法会一直查找一级评论下的所有二级评论信息
         Args:
-            comments: 评论列表
+            comments: 评论模型列表
+            raw_comments: 原始评论数据（用于获取游标信息）
             photo_id: 视频ID
-            callback: 一次评论爬取结束后的回调函数
 
         Returns:
-            List of sub-comments
+            List[KuaishouVideoComment]: 子评论模型列表
         """
         if not config.ENABLE_GET_SUB_COMMENTS:
             utils.logger.info(
@@ -225,32 +226,37 @@ class CommentProcessor:
             return []
 
         result = []
-        for comment in comments:
-            sub_comments = comment.get("subComments")
-            if sub_comments and callback:
-                await callback(photo_id, sub_comments)
+        # 使用raw_comments获取游标信息，使用comments获取评论ID
+        for comment, raw_comment in zip(comments, raw_comments):
+            sub_comments_data = raw_comment.get("subComments")
+            if sub_comments_data:
+                # 转换子评论为模型并保存
+                sub_comments_models = self.ks_client._extractor.extract_comments_from_list(
+                    photo_id, sub_comments_data
+                )
+                await kuaishou_store.batch_update_ks_video_comments(sub_comments_models)
+                result.extend(sub_comments_models)
 
-            sub_comment_pcursor = comment.get("subCommentsPcursor")
+            sub_comment_pcursor = raw_comment.get("subCommentsPcursor")
             if sub_comment_pcursor == "no_more":
                 continue
 
-            root_comment_id = comment.get("commentId")
+            root_comment_id = comment.comment_id
             sub_comment_pcursor = ""
 
             while sub_comment_pcursor != "no_more":
                 try:
-                    comments_res = await self.ks_client.get_video_sub_comments(
+                    sub_comments, sub_comments_res = await self.ks_client.get_video_sub_comments(
                         photo_id, root_comment_id, sub_comment_pcursor
                     )
-                    vision_sub_comment_list = comments_res.get("visionSubCommentList", {})
+                    vision_sub_comment_list = sub_comments_res.get("visionSubCommentList", {})
                     sub_comment_pcursor = vision_sub_comment_list.get("pcursor", "no_more")
 
-                    sub_comments = vision_sub_comment_list.get("subComments", [])
-                    if callback:
-                        await callback(photo_id, sub_comments)
+                    if sub_comments:
+                        await kuaishou_store.batch_update_ks_video_comments(sub_comments)
+                        result.extend(sub_comments)
                     # 爬虫请求间隔时间
                     await asyncio.sleep(config.CRAWLER_TIME_SLEEP)
-                    result.extend(sub_comments)
                 except Exception as e:
                     utils.logger.error(
                         f"[CommentProcessor.get_comments_all_sub_comments] Error getting sub comments: {e}"

@@ -13,7 +13,7 @@
 import asyncio
 import json
 import traceback
-from typing import Callable, Dict, List, Optional, Union
+from typing import Callable, Dict, List, Optional, Union, Tuple
 from urllib.parse import urlencode
 
 import httpx
@@ -30,7 +30,9 @@ from pkg.rpc.sign_srv_client import SignServerClient
 from pkg.tools import utils
 
 from .exception import DataFetchError
+from .extractor import KuaishouExtractor
 from .graphql import KuaiShouGraphQL
+from model.m_kuaishou import KuaishouVideo, KuaishouVideoComment, KuaishouCreator
 
 
 class KuaiShouApiClient(AbstractApiClient):
@@ -51,6 +53,7 @@ class KuaiShouApiClient(AbstractApiClient):
         self._user_agent = user_agent or utils.get_user_agent()
         self._sign_client = SignServerClient()
         self._graphql = KuaiShouGraphQL()
+        self._extractor = KuaishouExtractor()
         self.account_with_ip_pool = account_with_ip_pool
         self.account_info: Optional[AccountWithIpModel] = None
 
@@ -311,7 +314,7 @@ class KuaiShouApiClient(AbstractApiClient):
 
     async def search_info_by_keyword(
         self, keyword: str, pcursor: str, search_session_id: str = ""
-    ) -> Dict:
+    ) -> Tuple[List[KuaishouVideo], Dict]:
         """
         关键词搜索接口
         Args:
@@ -320,6 +323,7 @@ class KuaiShouApiClient(AbstractApiClient):
             search_session_id: 搜索会话ID
 
         Returns:
+            Tuple[List[KuaishouVideo], Dict]: 视频列表和原始响应
 
         """
         post_data = {
@@ -332,25 +336,41 @@ class KuaiShouApiClient(AbstractApiClient):
             },
             "query": self._graphql.get("search_query"),
         }
-        return await self.post("", post_data)
+        res = await self.post("", post_data)
+        
+        # 提取视频列表
+        videos = []
+        vision_search_photo = res.get("visionSearchPhoto", {})
+        feeds = vision_search_photo.get("feeds", [])
+        
+        for feed in feeds:
+            video = self._extractor.extract_video_from_dict(feed)
+            if video:
+                videos.append(video)
+        
+        return videos, res
 
-    async def get_video_info(self, photo_id: str) -> Dict:
+    async def get_video_info(self, photo_id: str) -> Optional[KuaishouVideo]:
         """
         获取视频详情
         Args:
             photo_id: 视频id
 
         Returns:
-
+            KuaishouVideo: 视频模型对象
         """
         post_data = {
             "operationName": "visionVideoDetail",
             "variables": {"photoId": photo_id, "page": "search"},
             "query": self._graphql.get("video_detail"),
         }
-        return await self.post("", post_data)
+        res = await self.post("", post_data)
+        video_detail = res.get("visionVideoDetail", {})
+        if video_detail:
+            return self._extractor.extract_video_from_dict(video_detail)
+        return None
 
-    async def get_video_comments(self, photo_id: str, pcursor: str = "") -> Dict:
+    async def get_video_comments(self, photo_id: str, pcursor: str = "") -> Tuple[List[KuaishouVideoComment], Dict]:
         """
         获取视频一级评论
         Args:
@@ -358,18 +378,30 @@ class KuaiShouApiClient(AbstractApiClient):
             pcursor: 分页游标
 
         Returns:
-
+            Tuple[List[KuaishouVideoComment], Dict]: 评论模型列表和响应元数据
         """
         post_data = {
             "operationName": "commentListQuery",
             "variables": {"photoId": photo_id, "pcursor": pcursor},
             "query": self._graphql.get("comment_list"),
         }
-        return await self.post("", post_data)
+        res = await self.post("", post_data)
+        
+        # Handle None response
+        if not res:
+            return [], {}
+        
+        # Extract comments as models
+        vision_comment_list = res.get("visionCommentList", {})
+        comments_data = vision_comment_list.get("rootComments", [])
+        comments = self._extractor.extract_comments_from_list(photo_id, comments_data)
+        
+        # Return both models and metadata
+        return comments, res
 
     async def get_video_sub_comments(
         self, photo_id: str, root_comment_id: str, pcursor: str = ""
-    ) -> Dict:
+    ) -> Tuple[List[KuaishouVideoComment], Dict]:
         """
         获取视频二级评论
         Args:
@@ -378,7 +410,7 @@ class KuaiShouApiClient(AbstractApiClient):
             pcursor:
 
         Returns:
-
+            Tuple[List[KuaishouVideoComment], Dict]: 子评论模型列表和响应元数据
         """
         post_data = {
             "operationName": "visionSubCommentList",
@@ -389,7 +421,19 @@ class KuaiShouApiClient(AbstractApiClient):
             },
             "query": self._graphql.get("vision_sub_comment_list"),
         }
-        return await self.post("", post_data)
+        res = await self.post("", post_data)
+        
+        # Handle None response
+        if not res:
+            return [], {}
+        
+        # Extract sub-comments as models
+        vision_sub_comment_list = res.get("visionSubCommentList", {})
+        sub_comments_data = vision_sub_comment_list.get("subComments", [])
+        sub_comments = self._extractor.extract_comments_from_list(photo_id, sub_comments_data)
+        
+        # Return both models and metadata
+        return sub_comments, res
 
     async def get_creator_profile(self, user_id: str) -> Dict:
         """
@@ -424,7 +468,7 @@ class KuaiShouApiClient(AbstractApiClient):
         }
         return await self.post("", post_data)
 
-    async def get_creator_info(self, user_id: str) -> Dict:
+    async def get_creator_info(self, user_id: str) -> Optional[KuaishouCreator]:
         """
         获取用户主页信息
         eg: https://www.kuaishou.com/profile/3x4jtnbfter525a
@@ -432,11 +476,14 @@ class KuaiShouApiClient(AbstractApiClient):
             user_id:
 
         Returns:
-
+            KuaishouCreator: 创作者模型对象
         """
         vision_res = await self.get_creator_profile(user_id)
         vision_profile = vision_res.get("visionProfile", {})
-        return vision_profile.get("userProfile")
+        user_profile = vision_profile.get("userProfile")
+        if user_profile:
+            return self._extractor.extract_creator_from_dict(user_id, user_profile)
+        return None
 
 
     async def get_homefeed_videos(self, pcursor: str = "") -> Dict:

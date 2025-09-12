@@ -45,35 +45,6 @@ class XhsStoreFactory:
         return store_class()
 
 
-def _get_video_url_arr(note_item: Dict) -> List[str]:
-    """获取视频URL数组（内部辅助函数）"""
-    if note_item.get("type") != "video":
-        return []
-
-    video_arr = []
-    origin_video_key = (
-        note_item.get("video", {}).get("consumer", {}).get("origin_video_key", "")
-    )
-    if not origin_video_key:
-        origin_video_key = (
-            note_item.get("video", {}).get("consumer", {}).get("originVideoKey", "")
-        )
-
-    if not origin_video_key:
-        videos = (
-            note_item.get("video", {})
-            .get("media", {})
-            .get("stream", {})
-            .get("h264", [])
-        )
-        if isinstance(videos, list):
-            video_arr = [v.get("master_url", "") for v in videos if v.get("master_url")]
-    else:
-        video_arr = [f"http://sns-video-bd.xhscdn.com/{origin_video_key}"]
-
-    return video_arr
-
-
 async def batch_update_xhs_notes(notes: List[XhsNote]):
     """
     批量更新小红书笔记
@@ -117,26 +88,6 @@ async def batch_update_xhs_note_comments(comments: List[XhsComment]):
         await update_xhs_note_comment(comment_item)
 
 
-async def batch_update_xhs_note_comments_from_dict(
-    note_id: str, comments: List[Dict], note_xsec_token: str, root_comment_id: str = ""
-):
-    """
-    从字典批量更新小红书笔记评论（兼容旧接口）
-    Args:
-        note_id: 笔记ID
-        comments: 评论数据列表
-        note_xsec_token: xsec_token
-        root_comment_id: 根评论ID
-    """
-    if not comments:
-        return
-
-    for comment_item in comments:
-        await update_xhs_note_comment_from_dict(
-            note_id, comment_item, note_xsec_token, root_comment_id
-        )
-
-
 async def update_xhs_note_comment(comment_item: XhsComment):
     """
     更新小红书笔记评论
@@ -150,44 +101,6 @@ async def update_xhs_note_comment(comment_item: XhsComment):
         f"[store.xhs.update_xhs_note_comment] xhs note comment, note_id: {comment_item.note_id}, comment_id: {comment_item.comment_id}"
     )
     await XhsStoreFactory.create_store().store_comment(local_db_item)
-
-
-async def update_xhs_note_comment_from_dict(
-    note_id: str, comment_item: Dict, note_xsec_token: str, root_comment_id: str = ""
-):
-    """
-    从字典更新小红书笔记评论（兼容旧接口）
-    Args:
-        note_id: 笔记ID
-        comment_item: 原始评论数据字典
-        note_xsec_token: xsec_token
-        root_comment_id: 根评论ID
-    """
-    user_info = comment_item.get("user_info", {})
-    comment_id = comment_item.get("id", "")
-    comment_pictures = [
-        item.get("url_default", "") for item in comment_item.get("pictures", [])
-    ]
-    target_comment = comment_item.get("target_comment", {})
-
-    xhs_comment = XhsComment(
-        comment_id=comment_id,
-        parent_comment_id=root_comment_id,
-        target_comment_id=target_comment.get("id", ""),
-        note_id=note_id,
-        content=comment_item.get("content", ""),
-        create_time=str(comment_item.get("create_time", "")),
-        ip_location=comment_item.get("ip_location", ""),
-        sub_comment_count=str(comment_item.get("sub_comment_count", "")),
-        like_count=str(comment_item.get("like_count", "")),
-        pictures=",".join(comment_pictures),
-        note_url=f"https://www.xiaohongshu.com/explore/{note_id}?xsec_token={note_xsec_token}&xsec_source=pc_search",
-        user_id=user_info.get("user_id", ""),
-        nickname=user_info.get("nickname", ""),
-        avatar=user_info.get("image", ""),
-    )
-
-    await update_xhs_note_comment(xhs_comment)
 
 
 async def save_creator(creator: XhsCreator):
@@ -206,42 +119,3 @@ async def save_creator(creator: XhsCreator):
         f"[store.xhs.save_creator] creator: {creator.user_id} - {creator.nickname}"
     )
     await XhsStoreFactory.create_store().store_creator(local_db_item)
-
-
-async def save_creator_from_dict(user_id: str, creator: Dict):
-    """
-    从字典保存小红书创作者信息（兼容旧接口）
-    Args:
-        user_id: 用户ID
-        creator: 原始创作者数据字典
-    """
-    user_info = creator.get("basicInfo", {})
-
-    follows = ""
-    fans = ""
-    interaction = ""
-    for i in creator.get("interactions", []):
-        if i.get("type") == "follows":
-            follows = str(i.get("count", ""))
-        elif i.get("type") == "fans":
-            fans = str(i.get("count", ""))
-        elif i.get("type") == "interaction":
-            interaction = str(i.get("count", ""))
-
-    xhs_creator = XhsCreator(
-        user_id=user_id,
-        nickname=user_info.get("nickname", ""),
-        gender="女" if user_info.get("gender") == 1 else "男",
-        avatar=user_info.get("images", ""),
-        desc=user_info.get("desc", ""),
-        ip_location=user_info.get("ipLocation", ""),
-        follows=follows,
-        fans=fans,
-        interaction=interaction,
-        tag_list=json.dumps(
-            {tag.get("tagType"): tag.get("name") for tag in creator.get("tags", [])},
-            ensure_ascii=False,
-        ),
-    )
-
-    await save_creator(xhs_creator)

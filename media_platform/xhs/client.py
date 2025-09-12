@@ -14,7 +14,7 @@ import json
 import random
 import re
 import traceback
-from typing import Callable, Dict, List, Optional, Union
+from typing import Callable, Dict, List, Optional, Union, Tuple
 from model.m_xhs import XhsNote, XhsComment, XhsCreator
 from urllib.parse import urlencode
 
@@ -431,7 +431,7 @@ class XiaoHongShuClient(AbstractApiClient):
 
     async def get_note_comments(
         self, note_id: str, cursor: str = "", xsec_token: str = ""
-    ) -> Dict:
+    ) -> Tuple[List[XhsComment], Dict]:
         """
         获取一级评论的API
         Args:
@@ -439,7 +439,7 @@ class XiaoHongShuClient(AbstractApiClient):
             cursor: 分页游标
             xsec_token: 验证token
         Returns:
-
+            Tuple[List[XhsComment], Dict]: 评论模型列表和响应元数据
         """
         uri = "/api/sns/web/v2/comment/page"
         params = {
@@ -450,7 +450,17 @@ class XiaoHongShuClient(AbstractApiClient):
         }
         if xsec_token:
             params["xsec_token"] = xsec_token
-        return await self.get(uri, params)
+
+        res = await self.get(uri, params)
+
+        # Extract comments as models
+        comments_data = res.get("comments", [])
+        comments = self._extractor.extract_comments_from_dict(
+            note_id, comments_data, xsec_token
+        )
+
+        # Return both models and metadata (cursor, has_more, etc)
+        return comments, res
 
     async def get_note_sub_comments(
         self,
@@ -459,7 +469,7 @@ class XiaoHongShuClient(AbstractApiClient):
         num: int = 10,
         cursor: str = "",
         xsec_token: str = "",
-    ):
+    ) -> Tuple[List[XhsComment], Dict]:
         """
         获取指定父评论下的子评论的API
         Args:
@@ -469,7 +479,7 @@ class XiaoHongShuClient(AbstractApiClient):
             cursor: 分页游标
             xsec_token: 验证token
         Returns:
-
+            Tuple[List[XhsComment], Dict]: 子评论模型列表和响应元数据
         """
         uri = "/api/sns/web/v2/comment/sub/page"
         params = {
@@ -480,120 +490,17 @@ class XiaoHongShuClient(AbstractApiClient):
         }
         if xsec_token:
             params["xsec_token"] = xsec_token
-        return await self.get(uri, params)
 
-    async def get_note_all_comments(
-        self,
-        note_id: str,
-        crawl_interval: float = 1.0,
-        callback: Optional[Callable] = None,
-        xsec_token: str = "",
-        cursor: str = "",
-    ) -> List[Dict]:
-        """
-        获取指定笔记下的所有一级评论，该方法会一直查找一个帖子下的所有评论信息
-        Args:
-            note_id: 笔记ID
-            crawl_interval: 爬取一次笔记的延迟单位（秒）
-            callback: 一次笔记爬取结束后
-            xsec_token: 验证token
-            cursor: 首次评论游标（用于断点续爬）
+        res = await self.get(uri, params)
 
-        Returns:
+        # Extract sub-comments as models
+        comments_data = res.get("comments", [])
+        comments = self._extractor.extract_comments_from_dict(
+            note_id, comments_data, xsec_token, root_comment_id
+        )
 
-        """
-        result = []
-        comments_has_more = True
-        comments_cursor = cursor  # 首次用外部传入的 cursor
-        while comments_has_more:
-            comments_res = await self.get_note_comments(
-                note_id, comments_cursor, xsec_token
-            )
-            comments_has_more = comments_res.get("has_more", False)
-            comments_cursor = comments_res.get("cursor", "")
-            if "comments" not in comments_res:
-                utils.logger.info(
-                    f"[XiaoHongShuClient.get_note_all_comments] No 'comments' key found in response: {comments_res}"
-                )
-                break
-            comments = comments_res["comments"]
-            if callback:
-                await callback(note_id, comments, xsec_token)
-            await asyncio.sleep(crawl_interval)
-            result.extend(comments)
-            if (
-                PER_NOTE_MAX_COMMENTS_COUNT
-                and len(result) >= PER_NOTE_MAX_COMMENTS_COUNT
-            ):
-                utils.logger.info(
-                    f"[XiaoHongShuClient.get_note_all_comments] The number of comments exceeds the limit: {PER_NOTE_MAX_COMMENTS_COUNT}"
-                )
-                break
-            sub_comments = await self.get_comments_all_sub_comments(
-                comments, crawl_interval, callback, xsec_token
-            )
-            result.extend(sub_comments)
-        return result
-
-    async def get_comments_all_sub_comments(
-        self,
-        comments: List[Dict],
-        crawl_interval: float = 1.0,
-        callback: Optional[Callable] = None,
-        xsec_token: str = "",
-    ) -> List[Dict]:
-        """
-        获取指定一级评论下的所有二级评论, 该方法会一直查找一级评论下的所有二级评论信息
-        Args:
-            comments: 评论列表
-            crawl_interval: 爬取一次评论的延迟单位（秒）
-            callback: 一次评论爬取结束后
-            xsec_token: 验证token
-
-        Returns:
-
-        """
-        if not config.ENABLE_GET_SUB_COMMENTS:
-            utils.logger.info(
-                f"[XiaoHongShuCrawler.get_comments_all_sub_comments] Crawling sub_comment mode is not enabled"
-            )
-            return []
-
-        result = []
-        for comment in comments:
-            note_id = comment.get("note_id")
-            sub_comments = comment.get("sub_comments")
-            if sub_comments and callback:
-                await callback(note_id, sub_comments, xsec_token)
-
-            sub_comment_has_more = comment.get("sub_comment_has_more")
-            if not sub_comment_has_more:
-                continue
-
-            root_comment_id = comment.get("id")
-            sub_comment_cursor = comment.get("sub_comment_cursor")
-
-            while sub_comment_has_more:
-                comments_res = await self.get_note_sub_comments(
-                    note_id,
-                    root_comment_id,
-                    10,
-                    sub_comment_cursor,
-                    xsec_token,
-                )
-                sub_comment_has_more = comments_res.get("has_more", False)
-                sub_comment_cursor = comments_res.get("cursor", "")
-                if "comments" not in comments_res:
-                    utils.logger.info(
-                        f"[XiaoHongShuClient.get_comments_all_sub_comments] No 'comments' key found in response: {comments_res}"
-                    )
-                    break
-                comments = comments_res["comments"]
-                if callback:
-                    await callback(note_id, comments, xsec_token, root_comment_id)
-                await asyncio.sleep(crawl_interval)
-                result.extend(comments)
-        return result
+        # Return both models and metadata
+        return comments, res
 
     async def get_creator_info(
         self, user_id: str, xsec_token: str, xsec_source: str
@@ -620,7 +527,9 @@ class XiaoHongShuClient(AbstractApiClient):
             follow_redirects=True,
             headers=self.headers,
         )
-        creator_info = self._extractor.extract_creator_info_from_html(user_id, response.text)
+        creator_info = self._extractor.extract_creator_info_from_html(
+            user_id, response.text
+        )
         return creator_info
 
     async def get_notes_by_creator(

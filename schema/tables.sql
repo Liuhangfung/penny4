@@ -340,7 +340,7 @@ CREATE TABLE `xhs_note_comment`
     `create_time`       bigint      NOT NULL COMMENT '评论时间戳',
     `note_id`           varchar(64) NOT NULL COMMENT '笔记ID',
     `content`           longtext    NOT NULL COMMENT '评论内容',
-    `sub_comment_count` int         NOT NULL COMMENT '子评论数量',
+    `sub_comment_count` varchar(64) NOT NULL COMMENT '子评论数量',
     `pictures`          varchar(512) DEFAULT NULL,
     `parent_comment_id` varchar(64) DEFAULT NULL COMMENT '父评论ID',
     `like_count`        varchar(255) NOT NULL DEFAULT '0' COMMENT '点赞数',

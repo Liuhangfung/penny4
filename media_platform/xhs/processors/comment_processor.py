@@ -14,6 +14,7 @@ from typing import Callable, Dict, List, Optional, TYPE_CHECKING
 
 import config
 from config.base_config import PER_NOTE_MAX_COMMENTS_COUNT
+from model.m_xhs import XhsComment
 from pkg.tools import utils
 from repo.platform_save_data import xhs as xhs_store
 
@@ -115,7 +116,6 @@ class CommentProcessor:
             )
             await self.get_note_all_comments(
                 note_id=note_id,
-                callback=xhs_store.batch_update_xhs_note_comments_from_dict,
                 xsec_token=xsec_token,
                 checkpoint_id=checkpoint_id,
             )
@@ -123,10 +123,9 @@ class CommentProcessor:
     async def get_note_all_comments(
         self,
         note_id: str,
-        callback: Optional[Callable] = None,
         xsec_token: str = "",
         checkpoint_id: str = "",
-    ) -> List[Dict]:
+    ) -> List[XhsComment]:
         """
         获取指定笔记下的所有一级评论，该方法会一直查找一个帖子下的所有评论信息
         Args:
@@ -136,7 +135,7 @@ class CommentProcessor:
             checkpoint_id: 检查点ID
 
         Returns:
-            List of comments
+            List[XhsComment]: 评论模型列表
         """
         current_comment_cursor = ""
         lastest_comment_cursor = await self.checkpoint_manager.get_note_comment_cursor(
@@ -157,7 +156,7 @@ class CommentProcessor:
         )
 
         while comments_has_more:
-            comments_res = await self.xhs_client.get_note_comments(
+            comments, comments_res = await self.xhs_client.get_note_comments(
                 note_id, comments_cursor, xsec_token
             )
             comments_has_more = comments_res.get("has_more", False)
@@ -171,14 +170,11 @@ class CommentProcessor:
                     comment_cursor=comments_cursor,
                 )
 
-            if "comments" not in comments_res:
-                utils.logger.info(
-                    f"[CommentProcessor.get_note_all_comments] No 'comments' key found in response: {comments_res}"
-                )
-                break
-            comments = comments_res["comments"]
-            if callback:
-                await callback(note_id, comments, xsec_token)
+            if not comments:
+                continue
+            
+            # 保存评论到数据库
+            await xhs_store.batch_update_xhs_note_comments(comments)
 
             # 爬虫请求间隔时间
             await asyncio.sleep(config.CRAWLER_TIME_SLEEP)
@@ -194,7 +190,7 @@ class CommentProcessor:
                 )
                 break
             sub_comments = await self.get_comments_all_sub_comments(
-                comments, callback, xsec_token
+                note_id, comments, comments_res.get("comments", []), xsec_token
             )
             result.extend(sub_comments)
 
@@ -210,20 +206,21 @@ class CommentProcessor:
 
     async def get_comments_all_sub_comments(
         self,
-        comments: List[Dict],
-        callback: Optional[Callable] = None,
+        note_id: str,
+        comments: List[XhsComment],
+        raw_comments: List[Dict],
         xsec_token: str = "",
-    ) -> List[Dict]:
+    ) -> List[XhsComment]:
         """
         获取指定一级评论下的所有二级评论, 该方法会一直查找一级评论下的所有二级评论信息
         Args:
-            comments: 评论列表
-            crawl_interval: 爬取一次评论的延迟单位（秒）
-            callback: 一次评论爬取结束后
+            note_id: 笔记ID
+            comments: 评论模型列表
+            raw_comments: 原始评论数据（用于获取游标信息）
             xsec_token: 验证token
 
         Returns:
-            List of sub-comments
+            List[XhsComment]: 子评论模型列表
         """
         if not config.ENABLE_GET_SUB_COMMENTS:
             utils.logger.info(
@@ -232,39 +229,42 @@ class CommentProcessor:
             return []
 
         result = []
-        for comment in comments:
-            note_id = comment.get("note_id")
-            sub_comments = comment.get("sub_comments")
-            if sub_comments and callback:
-                await callback(note_id, sub_comments, xsec_token)
+        # 使用raw_comments获取游标信息，使用comments获取评论ID
+        for comment, raw_comment in zip(comments, raw_comments):
+            sub_comments_data = raw_comment.get("sub_comments")
+            if sub_comments_data:
+                # 转换子评论为模型并保存
+                sub_comments_models = self.xhs_client._extractor.extract_comments_from_dict(
+                    note_id, sub_comments_data, xsec_token, comment.comment_id
+                )
+                await xhs_store.batch_update_xhs_note_comments(sub_comments_models)
+                result.extend(sub_comments_models)
 
-            sub_comment_has_more = comment.get("sub_comment_has_more")
+            sub_comment_has_more = raw_comment.get("sub_comment_has_more")
             if not sub_comment_has_more:
                 continue
 
-            root_comment_id = comment.get("id")
-            sub_comment_cursor = comment.get("sub_comment_cursor")
+            root_comment_id = comment.comment_id
+            sub_comment_cursor = raw_comment.get("sub_comment_cursor")
 
             while sub_comment_has_more:
-                comments_res = await self.xhs_client.get_note_sub_comments(
+                sub_comments, sub_comments_res = await self.xhs_client.get_note_sub_comments(
                     note_id,
                     root_comment_id,
                     10,
                     sub_comment_cursor,
                     xsec_token,
                 )
-                sub_comment_has_more = comments_res.get("has_more", False)
-                sub_comment_cursor = comments_res.get("cursor", "")
-                if "comments" not in comments_res:
-                    utils.logger.info(
-                        f"[CommentProcessor.get_comments_all_sub_comments] No 'comments' key found in response: {comments_res}"
-                    )
-                    break
-                comments = comments_res["comments"]
-                if callback:
-                    await callback(note_id, comments, xsec_token, root_comment_id)
+                sub_comment_has_more = sub_comments_res.get("has_more", False)
+                sub_comment_cursor = sub_comments_res.get("cursor", "")
+                
+                if not sub_comments:
+                    continue
+                
+                # 保存子评论到数据库
+                await xhs_store.batch_update_xhs_note_comments(sub_comments)
 
                 # 爬虫请求间隔时间
                 await asyncio.sleep(config.CRAWLER_TIME_SLEEP)
-                result.extend(comments)
+                result.extend(sub_comments)
         return result

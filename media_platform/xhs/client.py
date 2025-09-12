@@ -582,6 +582,20 @@ class XiaoHongShuClient(AbstractApiClient):
             async with httpx.AsyncClient(proxies=ip_proxies) as client:
                 try:
                     reponse = await client.get(req_url, headers=copy_headers)
+
+                    # 如果reponse中的内容出现了上面的 则证明出现了验证码，取出a标签中的href属性
+                    # www.xiaohongshu.com/website-login/captcha?redirectPath=https://www.xiaohongshu.com/explore/xxxx
+                    text = reponse.text or ""
+                    m = re.search(
+                        r"(?:https?:\/\/)?www\.xiaohongshu\.com\/website-login\/captcha\?redirectPath=(https:\/\/www\.xiaohongshu\.com\/explore\/[^\s'\"<>]+)",
+                        text,
+                    )
+                    if m:
+                        redirect_path = m.group(1)
+                        raise NeedVerifyError(
+                            f"---------- 出现安全验证码，请手机扫码验证，RedirectPath: {redirect_path} ----------\n"
+                        )
+
                     note = self._extractor.extract_note_detail_from_html(
                         note_id, reponse.text
                     )

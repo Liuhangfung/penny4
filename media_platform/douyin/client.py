@@ -350,7 +350,7 @@ class DouYinApiClient(AbstractApiClient):
             )
 
         utils.logger.warning(
-            f"[DouYinApiClient.pong] 登录检测失败,请检查cookies是否提取正确或者是否过期，文档地址：https://github.com/MediaCrawlerPro/MediaCrawlerPro-Python/issues/8"
+            f"[DouYinApiClient.pong] 登录检测失败,请检查cookies是否提取正确或者是否过期，文档地址：https://github.com/MediaCrawlerPro/MediaCrawlerPro-Python/issues/336"
         )
         return False
 

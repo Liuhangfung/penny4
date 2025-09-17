@@ -11,7 +11,7 @@
 点击查看更为详细的免责声明。[点击跳转](#disclaimer)
 
 ## Pro版本使用教程
-> 在安装部署之前，请务必 [查看Pro的一些注意事项汇总](https://github.com/MediaCrawlerPro/MediaCrawlerPro-Python/issues/8)
+> 在安装部署之前，请务必 [查看Pro的一些注意事项汇总](https://github.com/MediaCrawlerPro/MediaCrawlerPro-Python/issues/336)
 
 视频部署教程： [B站：MediaCrawlerPro使用教程](https://space.bilibili.com/434377496/channel/series)
 

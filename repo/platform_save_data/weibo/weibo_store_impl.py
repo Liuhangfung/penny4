@@ -171,6 +171,7 @@ class WeiboDbStoreImplement(AbstractStore):
             creator["add_ts"] = utils.get_current_timestamp()
             await add_new_creator(creator)
         else:
+            creator.pop("add_ts", None)
             await update_creator_by_user_id(user_id, creator)
 
 

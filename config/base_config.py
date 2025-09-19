@@ -104,7 +104,7 @@ WEIBO_SPECIFIED_ID_LIST = [
 ]
 # 指定weibo创作者ID列表
 WEIBO_CREATOR_ID_LIST = [
-    "7841387436",
+    "2172061270",
     # ........................
 ]
 

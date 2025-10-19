@@ -171,7 +171,7 @@ class DouyinExtractor:
             aweme_id=str(aweme_id),
             content=comment_item.get("text", ""),
             create_time=str(comment_item.get("create_time", "")),
-            sub_comment_count=str(comment_item.get("reply_comment_count", "")),
+            sub_comment_count=str(comment_item.get("reply_comment_total", "")),
             parent_comment_id=str(comment_item.get("reply_id", "") or ""),
             reply_to_reply_id=str(comment_item.get("reply_to_reply_id", "") or ""),
             like_count=str(comment_item.get("digg_count", "")),

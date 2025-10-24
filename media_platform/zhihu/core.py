@@ -289,7 +289,6 @@ class ZhihuCrawler(AbstractCrawler):
         Returns:
 
         """
-        need_get_comment_notes: List[ZhihuContent] = []
         note_details: List[ZhihuContent] = []
         for full_note_url in config.ZHIHU_SPECIFIED_ID_LIST:
             full_note_url = full_note_url.split("?")[0]
@@ -317,7 +316,7 @@ class ZhihuCrawler(AbstractCrawler):
                 note_details.append(note_detail)
                 await zhihu_store.update_zhihu_content(note_detail)
 
-        await self.batch_get_content_comments(need_get_comment_notes)
+        await self.batch_get_content_comments(note_details)
 
     async def get_homefeed_notes(self):
         """

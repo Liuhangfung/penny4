@@ -131,6 +131,7 @@ class WeiboDbStoreImplement(AbstractStore):
             content_item["add_ts"] = utils.get_current_timestamp()
             await add_new_content(content_item)
         else:
+            content_item.pop("add_ts", None)
             await update_content_by_content_id(note_id, content_item=content_item)
 
     async def store_comment(self, comment_item: Dict):
@@ -151,6 +152,7 @@ class WeiboDbStoreImplement(AbstractStore):
             comment_item["add_ts"] = utils.get_current_timestamp()
             await add_new_comment(comment_item)
         else:
+            comment_item.pop("add_ts", None)
             await update_comment_by_comment_id(comment_id, comment_item=comment_item)
 
     async def store_creator(self, creator: Dict):

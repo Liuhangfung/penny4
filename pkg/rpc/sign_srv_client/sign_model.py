@@ -20,7 +20,7 @@ class XhsSignResult(BaseModel):
     x_t: str = Field(..., title="x_t", description="x_t")
     x_s_common: str = Field(..., title="x_s_common", description="x_s_common")
     x_b3_traceid: str = Field(..., title="x_t_common", description="x_b3_trace_id")
-    x_mns: str = Field(..., title="x_mns", description="x_mns")
+    # x_mns: str = Field(..., title="x_mns", description="x_mns")
 
 
 class XhsSignRequest(BaseModel):

@@ -65,8 +65,8 @@ CHECKPOINT_STORAGE_TYPE = "file"  # file or redis
 # 如果开启的话会增加被风控的概率，相当于一个关键词搜索请求会再遍历所有帖子的时候，再请求一次帖子详情
 ENABLE_WEIBO_FULL_TEXT = False
 
-# 爬虫请求间隔时间，单位：秒，默认0.5秒
-CRAWLER_TIME_SLEEP = 0.5
+# 爬虫请求间隔时间，单位：秒，默认1秒
+CRAWLER_TIME_SLEEP = 1
 
 # 已废弃⚠️⚠️⚠️指定小红书需要爬虫的笔记ID列表
 # 已废弃⚠️⚠️⚠️ 指定笔记ID笔记列表会因为缺少xsec_token和xsec_source参数导致爬取失败
@@ -78,7 +78,7 @@ CRAWLER_TIME_SLEEP = 0.5
 # 指定小红书需要爬虫的笔记URL列表, 目前要携带xsec_token和xsec_source参数， xsec_token是有时间限制的
 # xsec_token和xsec_source是有时效的，需要在web端打开一个小红书笔记，复制地址栏的url参数
 XHS_SPECIFIED_NOTE_URL_LIST = [
-    "https://www.xiaohongshu.com/explore/6874ebb2000000002201e9aa?xsec_token=ABKDmJEndmegH576eSqxOziDjt1UZEI_bT9o5gm3pW3kY=&xsec_source=pc_search&source=web_explore_feed"
+    "https://www.xiaohongshu.com/explore/68f20ba9000000000401619f?xsec_token=ABFNeBpLwvXZKTnBmYvNWXoooaC0vGY2tSBtjlNNLbYRw=&xsec_source=pc_feed"
     # "https://www.xiaohongshu.com/explore/66fad51c000000001b0224b8?xsec_token=AB3rO-QopW5sgrJ41GwN01WCXh6yWPxjSoFI9D5JIMgKw=&xsec_source=pc_search"
     # ........................
 ]

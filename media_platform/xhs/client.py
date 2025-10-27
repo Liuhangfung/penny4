@@ -157,13 +157,13 @@ class XiaoHongShuClient(AbstractApiClient):
             cookies=self._cookies,
         )
         xhs_sign_resp = await self._sign_client.xiaohongshu_sign(sign_req)
-        xmns = xhs_sign_resp.data.x_mns
+        # xmns = xhs_sign_resp.data.x_mns
         headers = {
             "X-s": xhs_sign_resp.data.x_s,
             "X-t": xhs_sign_resp.data.x_t,
             "x-s-common": xhs_sign_resp.data.x_s_common,
             "X-B3-Traceid": xhs_sign_resp.data.x_b3_traceid,
-            "X-Mns": xmns,
+            # "X-Mns": xmns,
         }
         headers.update(self.headers)
         return headers

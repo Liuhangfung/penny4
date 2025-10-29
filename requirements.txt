@@ -13,3 +13,4 @@ cryptography
 aiohttp
 pyhumps==3.8.0
 typer==0.16.0
+loguru==0.7.2

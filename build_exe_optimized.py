@@ -28,7 +28,7 @@ PyInstaller.__main__.run([
     'launcher.py',
     '--name=MediaCrawlerPro',
     '--onefile',
-    '--windowed',  # No console window
+    '--console',  # Show console window (needed for user feedback)
     '--icon=NONE',
     '--add-data=config;config',
     '--add-data=web_ui.py;.',

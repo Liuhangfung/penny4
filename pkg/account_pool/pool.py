@@ -119,6 +119,27 @@ class AccountPoolManager:
         Returns:
             AccountInfoModel: account info model
         """
+        # Reload accounts if pool is empty
+        if len(self._account_list) == 0:
+            utils.logger.info(
+                f"[AccountPoolManager.get_active_account] Account pool is empty, reloading accounts..."
+            )
+            if self._account_save_type == EXCEL_ACCOUNT_SAVE:
+                self.load_accounts_from_xlsx()
+            # Note: MySQL accounts need async reload, so we'll handle that in get_account_with_ip_info
+        
+        # Try to find a valid account
+        valid_accounts = [acc for acc in self._account_list if acc.status.value == AccountStatusEnum.NORMAL.value]
+        
+        # If no valid accounts found but pool has accounts, reload from Excel (for Excel storage)
+        if len(valid_accounts) == 0 and len(self._account_list) > 0 and self._account_save_type == EXCEL_ACCOUNT_SAVE:
+            utils.logger.info(
+                f"[AccountPoolManager.get_active_account] No valid accounts found, reloading from Excel..."
+            )
+            self._account_list.clear()  # Clear invalid accounts
+            self.load_accounts_from_xlsx()
+            valid_accounts = [acc for acc in self._account_list if acc.status.value == AccountStatusEnum.NORMAL.value]
+        
         while len(self._account_list) > 0:
             account = self._account_list.pop(0)
             if account.status.value == AccountStatusEnum.NORMAL.value:

@@ -12,6 +12,7 @@ services:
       - signsrv
     volumes:
       - ./config:/app/config
+      - ./data:/app/data
     environment:
       - RELATION_DB_USER=root
       - RELATION_DB_HOST=mysql_db
@@ -30,11 +31,13 @@ services:
       # - KDL_USER_NAME
       # - KDL_USER_PWD
 
-    command: python main.py --platform xhs --type search # 添加启动命令
+    # Command removed - will use config file settings instead
+    # command: python main.py --platform xhs --type search
 
   signsrv:
     image: mediacrawler_signsrv:latest
     container_name: mediacrawler_signsrv
+    pull_policy: never
     ports:
       - "8989:8989"
     environment:

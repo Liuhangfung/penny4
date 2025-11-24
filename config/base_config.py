@@ -15,8 +15,8 @@ from typing import List
 
 from constant import MYSQL_ACCOUNT_SAVE
 
-PLATFORM = "xhs"
-KEYWORDS = "deepseek,chatgpt"
+PLATFORM = "bili"
+KEYWORDS = "trust"
 
 # 具体值参见media_platform.xxx.field下的枚举值，暂时只支持小红书
 SORT_TYPE = "popularity_descending"
@@ -26,10 +26,10 @@ PUBLISH_TIME_TYPE = 0
 CRAWLER_TYPE = "search"  # 爬取类型，search(关键词搜索) | detail(帖子详情)| creator(创作者主页数据) | homefeed(首页推荐)
 
 # 数据保存类型选项配置,支持三种类型：csv、db、json
-SAVE_DATA_OPTION = "db"  # csv or db or json
+SAVE_DATA_OPTION = "json"  # csv or db or json
 
 # 账号池保存类型选项配置,支持2种类型：xlsx、mysql
-ACCOUNT_POOL_SAVE_TYPE = os.getenv("ACCOUNT_POOL_SAVE_TYPE", MYSQL_ACCOUNT_SAVE)
+ACCOUNT_POOL_SAVE_TYPE = os.getenv("ACCOUNT_POOL_SAVE_TYPE", "xlsx")
 
 # 爬取开始页数 默认从第一页开始
 START_PAGE = 1
@@ -41,7 +41,7 @@ CRAWLER_MAX_NOTES_COUNT = 40
 MAX_CONCURRENCY_NUM = 1
 
 # 是否开启爬评论模式, 默认不开启爬评论
-ENABLE_GET_COMMENTS = True
+ENABLE_GET_COMMENTS = True  # Disabled to reduce CAPTCHA triggers
 
 # 是否开启爬二级评论模式, 默认不开启爬二级评论
 ENABLE_GET_SUB_COMMENTS = False
@@ -66,7 +66,7 @@ CHECKPOINT_STORAGE_TYPE = "file"  # file or redis
 ENABLE_WEIBO_FULL_TEXT = False
 
 # 爬虫请求间隔时间，单位：秒，默认1秒
-CRAWLER_TIME_SLEEP = 1
+CRAWLER_TIME_SLEEP = 10  # 增加延迟以减少CAPTCHA触发
 
 # 已废弃⚠️⚠️⚠️指定小红书需要爬虫的笔记ID列表
 # 已废弃⚠️⚠️⚠️ 指定笔记ID笔记列表会因为缺少xsec_token和xsec_source参数导致爬取失败

@@ -101,6 +101,14 @@ if 'last_update' not in st.session_state:
 
 def check_sign_service():
     """Check if sign service is running"""
+    # If running in standalone mode (no Docker), skip sign service check
+    use_docker = os.getenv('USE_DOCKER', 'true').lower()
+    enable_sign = os.getenv('ENABLE_SIGN_SERVICE', '1')
+    
+    if use_docker == 'false' or enable_sign == '0':
+        # Standalone mode - sign service not required
+        return True
+    
     try:
         response = httpx.get("http://localhost:8989/signsrv/pong", timeout=2)
         return response.status_code == 200
@@ -247,7 +255,40 @@ def start_crawler(platform, crawler_type, keywords, max_notes, enable_comments):
         if not update_config_file(keywords, max_notes, enable_comments, platform, crawler_type):
             return False
         
-        # Try Docker first, fallback to local Python
+        # Check if standalone mode (no Docker)
+        use_docker = os.getenv('USE_DOCKER', 'true').lower()
+        
+        if use_docker == 'false':
+            # Standalone mode - run Python directly
+            env = os.environ.copy()
+            env['PYTHONIOENCODING'] = 'utf-8'
+            env['USE_DOCKER'] = 'false'
+            env['ENABLE_SIGN_SERVICE'] = '0'
+            env['ENABLE_IP_PROXY'] = '0'
+            
+            cmd = [sys.executable, 'main.py', '--platform', platform, '--type', crawler_type]
+            
+            # Create logs directory if it doesn't exist
+            logs_dir = Path("logs")
+            logs_dir.mkdir(exist_ok=True)
+            
+            # Open log file
+            log_file = logs_dir / f"{platform}_{crawler_type}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+            log_handle = open(log_file, 'w', encoding='utf-8')
+            
+            process = subprocess.Popen(
+                cmd,
+                stdout=log_handle,
+                stderr=subprocess.STDOUT,
+                text=True,
+                env=env,
+                cwd=str(Path(".").absolute())
+            )
+            
+            st.success(f"✅ Crawler started! Logs: {log_file.name}")
+            return process
+        
+        # Docker mode - original code
         try:
             # Stop and remove existing container
             subprocess.run('docker stop mediacrawlerpro', shell=True, capture_output=True, text=True, timeout=5)
@@ -398,11 +439,19 @@ def display_cards(posts):
                 col_a, col_b = st.columns(2)
                 with col_a:
                     liked = post.get('liked_count', 0) or 0
-                    st.metric("❤️", f"{liked:,}" if liked else "0")
+                    try:
+                        liked_num = int(liked) if liked else 0
+                        st.metric("❤️", f"{liked_num:,}")
+                    except:
+                        st.metric("❤️", str(liked))
                 
                 with col_b:
                     comments = post.get('comment_count', 0) or 0
-                    st.metric("💬", f"{comments:,}" if comments else "0")
+                    try:
+                        comments_num = int(comments) if comments else 0
+                        st.metric("💬", f"{comments_num:,}")
+                    except:
+                        st.metric("💬", str(comments))
                 
                 # Additional stats
                 collected = post.get('collected_count', 0) or 0
@@ -427,6 +476,13 @@ def display_cards(posts):
 
 def check_crawler_status():
     """Check Docker container status and return status info"""
+    # Skip Docker checks in standalone mode
+    use_docker = os.getenv('USE_DOCKER', 'true').lower()
+    
+    if use_docker == 'false':
+        # In standalone mode, return ready status
+        return {"status": "ready", "message": "✅ Ready to crawl (Standalone mode)"}
+    
     try:
         # Check if container is running
         check_cmd = 'docker ps --filter "name=mediacrawlerpro" --format "{{.Status}}"'
@@ -499,7 +555,11 @@ with st.sidebar:
     
     # Check sign service
     sign_service_ok = check_sign_service()
-    if sign_service_ok:
+    use_docker = os.getenv('USE_DOCKER', 'true').lower()
+    
+    if use_docker == 'false':
+        st.success("✅ Standalone Mode (No Docker)")
+    elif sign_service_ok:
         st.success("✅ Sign Service Running")
     else:
         st.error("❌ Sign Service Not Running")
@@ -545,7 +605,9 @@ with tab1:
         st.warning("⚠️ Please complete setup before crawling. Check the sidebar for status.")
         
         with st.expander("🔧 What's needed?"):
-            if not sign_service_ok:
+            use_docker = os.getenv('USE_DOCKER', 'true').lower()
+            
+            if not sign_service_ok and use_docker != 'false':
                 st.error("**Sign Service Not Running**")
                 st.code("""# In a new terminal:
 cd ..
@@ -645,6 +707,9 @@ python app.py""", language="bash")
                 st.text(crawler_status["logs"])
         st.session_state.crawling = False
         st.session_state.process = None
+    elif crawler_status["status"] == "ready":
+        # Standalone mode - ready to crawl
+        st.success(crawler_status["message"])
     elif crawler_status["status"] == "not_found":
         st.info(crawler_status["message"])
         st.session_state.crawling = False
